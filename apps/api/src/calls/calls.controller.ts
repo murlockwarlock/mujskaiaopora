@@ -1,0 +1,35 @@
+import { Body, Controller, Param, Post, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { AuthenticatedUser } from '../auth/auth.types';
+import { CurrentUser } from '../auth/current-user.decorator';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { CallsService } from './calls.service';
+import { CreateCallRoomDto } from './dto/calls.dto';
+
+@ApiTags('calls')
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard)
+@Controller('calls')
+export class CallsController {
+  constructor(private readonly callsService: CallsService) {}
+
+  @Post('rooms')
+  createRoom(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreateCallRoomDto) {
+    return this.callsService.createRoom(user.sub, dto);
+  }
+
+  @Post('rooms/:roomId/join')
+  joinRoom(@CurrentUser() user: AuthenticatedUser, @Param('roomId') roomId: string) {
+    return this.callsService.joinRoom(user.sub, roomId);
+  }
+
+  @Post('rooms/:roomId/leave')
+  leaveRoom(@CurrentUser() user: AuthenticatedUser, @Param('roomId') roomId: string) {
+    return this.callsService.leaveRoom(user.sub, roomId);
+  }
+
+  @Post('rooms/:roomId/decline')
+  declineRoom(@CurrentUser() user: AuthenticatedUser, @Param('roomId') roomId: string) {
+    return this.callsService.declineRoom(user.sub, roomId);
+  }
+}

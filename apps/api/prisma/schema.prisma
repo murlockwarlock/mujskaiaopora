@@ -1,0 +1,270 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  USER
+  MODERATOR
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  DELETED
+}
+
+enum ConversationType {
+  DIRECT
+  GROUP
+}
+
+enum MembershipRole {
+  OWNER
+  MEMBER
+}
+
+enum ReportStatus {
+  OPEN
+  IN_REVIEW
+  RESOLVED
+  DISMISSED
+}
+
+enum CallRoomStatus {
+  SCHEDULED
+  LIVE
+  ENDED
+  CANCELLED
+}
+
+enum CallInvitationStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  EXPIRED
+}
+
+model User {
+  id                   String               @id @default(uuid())
+  email                String               @unique
+  passwordHash         String
+  displayName          String
+  role                 UserRole             @default(USER)
+  status               UserStatus           @default(ACTIVE)
+  profile              Profile?
+  passwordResetTokens  PasswordResetToken[]
+  avatarUploads        AvatarUpload[]
+  sessions             UserSession[]
+  auditEvents          AuditEvent[]
+  memberships          ConversationMember[]
+  sentMessages         Message[]            @relation("MessageSender")
+  createdConversations Conversation[]       @relation("ConversationCreator")
+  blocksCreated        Block[]              @relation("BlockCreator")
+  blocksReceived       Block[]              @relation("BlockTarget")
+  reportsCreated       Report[]             @relation("ReportCreator")
+  reportsReceived      Report[]             @relation("ReportTarget")
+  createdCallRooms     CallRoom[]           @relation("CallRoomCreator")
+  callParticipants     CallParticipant[]
+  callInvitations      CallInvitation[]
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+}
+
+model Profile {
+  id          String   @id @default(uuid())
+  userId      String   @unique
+  birthDate   DateTime?
+  city        String?
+  timeZone    String   @default("UTC")
+  bio         String   @default("")
+  languages   String[] @default([])
+  interests   String[] @default([])
+  isVisible   Boolean  @default(true)
+  completedAt DateTime?
+  avatarKey   String?
+  messageSoundEnabled Boolean @default(true)
+  callSoundEnabled Boolean @default(true)
+  browserNotificationsEnabled Boolean @default(false)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model PasswordResetToken {
+  id        String   @id @default(uuid())
+  userId    String
+  tokenHash String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@index([userId, expiresAt])
+}
+
+model AvatarUpload {
+  id          String   @id @default(uuid())
+  userId      String
+  objectKey   String   @unique
+  contentType String
+  byteSize    Int
+  expiresAt   DateTime
+  confirmedAt DateTime?
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+
+  @@index([userId, expiresAt])
+}
+
+model UserSession {
+  id               String   @id @default(uuid())
+  userId           String
+  refreshTokenHash String   @unique
+  expiresAt        DateTime
+  revokedAt        DateTime?
+  userAgent        String?
+  ipAddress        String?
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt        DateTime @default(now())
+
+  @@index([userId, expiresAt])
+}
+
+model AuditEvent {
+  id          String   @id @default(uuid())
+  actorUserId String?
+  action      String
+  resource    String
+  resourceId  String?
+  outcome     String
+  metadata    Json?
+  ipAddress   String?
+  userAgent   String?
+  actor       User?    @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+
+  @@index([actorUserId, createdAt])
+  @@index([action, createdAt])
+}
+
+model Conversation {
+  id          String               @id @default(uuid())
+  type        ConversationType
+  title       String?
+  createdById String
+  createdBy   User                 @relation("ConversationCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  members     ConversationMember[]
+  messages    Message[]
+  callRooms   CallRoom[]
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+}
+
+model ConversationMember {
+  conversationId String
+  userId         String
+  role           MembershipRole @default(MEMBER)
+  lastReadAt     DateTime?
+  joinedAt       DateTime       @default(now())
+  conversation   Conversation   @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([conversationId, userId])
+  @@index([userId, joinedAt])
+}
+
+model Message {
+  id              String       @id @default(uuid())
+  conversationId  String
+  senderId        String
+  clientMessageId String
+  body            String
+  conversation    Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender          User         @relation("MessageSender", fields: [senderId], references: [id], onDelete: Restrict)
+  reports         Report[]
+  createdAt       DateTime     @default(now())
+  editedAt        DateTime?
+  deletedAt       DateTime?
+
+  @@unique([senderId, clientMessageId])
+  @@index([conversationId, createdAt])
+}
+
+model Block {
+  id        String   @id @default(uuid())
+  creatorId String
+  targetId  String
+  creator   User     @relation("BlockCreator", fields: [creatorId], references: [id], onDelete: Cascade)
+  target    User     @relation("BlockTarget", fields: [targetId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([creatorId, targetId])
+}
+
+model Report {
+  id           String       @id @default(uuid())
+  reporterId   String
+  targetUserId String
+  messageId    String?
+  reason       String
+  details      String?
+  status       ReportStatus @default(OPEN)
+  resolution   String?
+  reporter     User         @relation("ReportCreator", fields: [reporterId], references: [id], onDelete: Restrict)
+  targetUser   User         @relation("ReportTarget", fields: [targetUserId], references: [id], onDelete: Restrict)
+  message      Message?     @relation(fields: [messageId], references: [id], onDelete: SetNull)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@index([status, createdAt])
+}
+
+model CallRoom {
+  id              String         @id @default(uuid())
+  livekitRoomName String         @unique
+  title           String
+  conversationId  String?
+  createdById     String
+  maxParticipants Int            @default(10)
+  status          CallRoomStatus @default(SCHEDULED)
+  startsAt        DateTime?
+  endsAt          DateTime?
+  conversation    Conversation?  @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  createdBy       User           @relation("CallRoomCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  participants    CallParticipant[]
+  invitations     CallInvitation[]
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@index([status, startsAt])
+}
+
+model CallParticipant {
+  callRoomId String
+  userId     String
+  joinedAt   DateTime @default(now())
+  leftAt     DateTime?
+  callRoom   CallRoom @relation(fields: [callRoomId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([callRoomId, userId])
+}
+
+model CallInvitation {
+  callRoomId String
+  userId String
+  status CallInvitationStatus @default(PENDING)
+  respondedAt DateTime?
+  callRoom CallRoom @relation(fields: [callRoomId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@id([callRoomId, userId])
+  @@index([userId, status, createdAt])
+}
