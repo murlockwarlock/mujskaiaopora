@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Room, RoomEvent, Track } from 'livekit-client';
 import { api } from '@/lib/api';
 
-export function Calls({ onNotice, roomId, onRoomConsumed, onClose }: { onNotice: (value: string) => void; roomId: string | null; onRoomConsumed: () => void; onClose?: () => void }) {
+export function Calls({ onNotice, roomId, connection, onRoomConsumed, onClose }: { onNotice: (value: string) => void; roomId: string | null; connection?: { token: string; url: string }; onRoomConsumed: () => void; onClose?: () => void }) {
   const [room, setRoom] = useState<Room | null>(null);
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
   const [microphoneEnabled, setMicrophoneEnabled] = useState(false);
@@ -14,22 +14,22 @@ export function Calls({ onNotice, roomId, onRoomConsumed, onClose }: { onNotice:
   const media = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (roomId && !room) void start(roomId);
-  }, [roomId, room]);
+    if (roomId && !room) void start(roomId, connection);
+  }, [roomId, room, connection?.token]);
 
-  async function start(existingRoomId?: string): Promise<void> {
+  async function start(existingRoomId?: string, existingConnection?: { token: string; url: string }): Promise<void> {
     let targetRoomId: string | null = null;
     let nextRoom: Room | null = null;
     setConnectionState('connecting');
     setError('');
     try {
       targetRoomId = existingRoomId ?? (await api.request<{ id: string }>('calls/rooms', { method: 'POST', body: JSON.stringify({ title: 'Новая встреча', maxParticipants: 10 }) })).id;
-      const connection = await api.request<{ token: string; url: string }>(`calls/rooms/${targetRoomId}/join`, { method: 'POST' });
+      const nextConnection = existingConnection ?? await api.request<{ token: string; url: string }>(`calls/rooms/${targetRoomId}/join`, { method: 'POST' });
       nextRoom = new Room({ adaptiveStream: true, dynacast: true });
       nextRoom.on(RoomEvent.TrackSubscribed, (track) => {
         if (track.kind === Track.Kind.Video) media.current?.append(track.attach());
       });
-      await nextRoom.connect(connection.url, connection.token);
+      await nextRoom.connect(nextConnection.url, nextConnection.token);
       await nextRoom.localParticipant.enableCameraAndMicrophone();
       const cameraTrack = nextRoom.localParticipant.getTrackPublication(Track.Source.Camera)?.track;
       if (cameraTrack?.kind === Track.Kind.Video) media.current?.append(cameraTrack.attach());

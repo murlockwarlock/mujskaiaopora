@@ -4,6 +4,7 @@ const baseUrl = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') ?? '';
 
 class ApiClient {
   private accessToken: string | null = null;
+  private refreshPromise: Promise<boolean> | null = null;
 
   async register(payload: { email: string; password: string; displayName: string }) {
     const session = await this.request<Session>('auth/register', { method: 'POST', body: JSON.stringify(payload), authenticated: false });
@@ -18,6 +19,16 @@ class ApiClient {
   }
 
   async refresh(): Promise<boolean> {
+    if (this.refreshPromise) return this.refreshPromise;
+    this.refreshPromise = this.refreshSession();
+    try {
+      return await this.refreshPromise;
+    } finally {
+      this.refreshPromise = null;
+    }
+  }
+
+  private async refreshSession(): Promise<boolean> {
     try {
       const session = await this.request<Session>('auth/refresh', { method: 'POST', authenticated: false });
       this.accessToken = session.accessToken;

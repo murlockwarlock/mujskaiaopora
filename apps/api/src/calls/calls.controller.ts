@@ -18,6 +18,11 @@ export class CallsController {
     return this.callsService.createRoom(user.sub, dto);
   }
 
+  @Post('conversations/:conversationId/start')
+  startConversationCall(@CurrentUser() user: AuthenticatedUser, @Param('conversationId') conversationId: string) {
+    return this.callsService.startConversationCall(user.sub, conversationId);
+  }
+
   @Post('rooms/:roomId/join')
   joinRoom(@CurrentUser() user: AuthenticatedUser, @Param('roomId') roomId: string) {
     return this.callsService.joinRoom(user.sub, roomId);

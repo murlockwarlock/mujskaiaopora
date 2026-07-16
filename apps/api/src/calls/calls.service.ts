@@ -35,6 +35,16 @@ export class CallsService {
     return room;
   }
 
+  async startConversationCall(userId: string, conversationId: string) {
+    const room = await this.createRoom(userId, {
+      title: 'Видеовстреча',
+      conversationId,
+      maxParticipants: Number(this.config.getOrThrow<string>('MAX_CALL_PARTICIPANTS'))
+    });
+    const connection = await this.joinRoom(userId, room.id);
+    return { roomId: room.id, ...connection };
+  }
+
   async joinRoom(userId: string, roomId: string) {
     const room = await this.prisma.callRoom.findUnique({ where: { id: roomId } });
     if (!room || room.status === 'ENDED' || room.status === 'CANCELLED') throw new NotFoundException('Комната недоступна');

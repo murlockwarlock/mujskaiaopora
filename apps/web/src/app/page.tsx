@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AuthScreen } from '@/features/auth/auth-screen';
 import { Dashboard } from '@/features/dashboard/dashboard';
 import { Conversation, Message, Profile, Recommendation, View } from '@/features/app/types';
@@ -16,8 +16,11 @@ export default function Page() {
   const [view, setView] = useState<View>('home');
   const [notice, setNotice] = useState('');
   const [loading, setLoading] = useState(true);
+  const restoreStarted = useRef(false);
 
   useEffect(() => {
+    if (restoreStarted.current) return;
+    restoreStarted.current = true;
     void restore();
   }, []);
 
