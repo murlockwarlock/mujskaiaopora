@@ -30,5 +30,5 @@ export default function ResetPasswordPage() {
     }
   }
 
-  return <main className="auth-page"><form className="auth-card" onSubmit={submit}><p className="eyebrow">Восстановление доступа</p><h1>Новый пароль</h1><label className="field"><span>Пароль</span><input name="password" type="password" minLength={12} required /></label><label className="field"><span>Повторите пароль</span><input name="confirmPassword" type="password" minLength={12} required /></label>{error && <p className="form-error">{error}</p>}{message && <p className="form-success">{message}</p>}<button className="primary">Сохранить пароль</button></form></main>;
+  return <main className="auth-page"><form className="auth-card" onSubmit={submit}><p className="eyebrow">Восстановление доступа</p><h1>Новый пароль</h1><label className="field"><span>Пароль</span><input name="password" type="password" minLength={8} required /></label><label className="field"><span>Повторите пароль</span><input name="confirmPassword" type="password" minLength={8} required /></label>{error && <p className="form-error">{error}</p>}{message && <p className="form-success">{message}</p>}<button className="primary">Сохранить пароль</button></form></main>;
 }

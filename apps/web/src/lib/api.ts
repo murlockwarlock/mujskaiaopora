@@ -1,6 +1,6 @@
 type RequestOptions = RequestInit & { authenticated?: boolean };
 
-const baseUrl = process.env.NEXT_PUBLIC_API_URL;
+const baseUrl = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') ?? '';
 
 class ApiClient {
   private accessToken: string | null = null;
@@ -37,7 +37,6 @@ class ApiClient {
   }
 
   async request<T = void>(path: string, options: RequestOptions = {}, retried = false): Promise<T> {
-    if (!baseUrl) throw new Error('Не задан NEXT_PUBLIC_API_URL');
     const { authenticated = true, headers, ...init } = options;
     const response = await fetch(`${baseUrl}/v1/${path}`, {
       ...init,

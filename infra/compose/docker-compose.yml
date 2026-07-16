@@ -35,6 +35,13 @@ services:
       - "9000:9000"
       - "9001:9001"
 
+  minio-init:
+    image: minio/mc:RELEASE.2025-05-21T01-59-54Z
+    depends_on:
+      - minio
+    entrypoint: >-
+      /bin/sh -c "until mc alias set local http://minio:9000 opora change-me; do sleep 1; done; mc mb --ignore-existing local/opora; mc anonymous set download local/opora"
+
   mailpit:
     image: axllent/mailpit:v1.26
     ports:
@@ -46,7 +53,10 @@ services:
     command: --config /etc/livekit.yaml
     volumes:
       - ../livekit/livekit.yaml:/etc/livekit.yaml:ro
-    network_mode: host
+    ports:
+      - "7880:7880"
+      - "7881:7881"
+      - "50000-50100:50000-50100/udp"
 
 volumes:
   postgres_data:

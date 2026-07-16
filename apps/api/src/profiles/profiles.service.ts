@@ -1,10 +1,13 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { ConfigService } from '@nestjs/config';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { ConfirmAvatarUploadDto, CreateAvatarUploadDto } from './dto/avatar.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
+
+const profileInclude = { user: { select: { id: true, displayName: true } } } satisfies Prisma.ProfileInclude;
 
 @Injectable()
 export class ProfilesService {
@@ -17,7 +20,7 @@ export class ProfilesService {
   async getProfile(userId: string) {
     const profile = await this.prisma.profile.findUniqueOrThrow({
       where: { userId },
-      include: { user: { select: { id: true, displayName: true } } }
+      include: profileInclude
     });
     return this.present(profile);
   }
@@ -56,7 +59,8 @@ export class ProfilesService {
         callSoundEnabled: dto.callSoundEnabled,
         browserNotificationsEnabled: dto.browserNotificationsEnabled,
         completedAt
-      }
+      },
+      include: profileInclude
     });
     return this.present(profile);
   }
@@ -87,7 +91,7 @@ export class ProfilesService {
 
     const [, profile] = await this.prisma.$transaction([
       this.prisma.avatarUpload.update({ where: { id: upload.id }, data: { confirmedAt: new Date() } }),
-      this.prisma.profile.update({ where: { userId }, data: { avatarKey: upload.objectKey } })
+      this.prisma.profile.update({ where: { userId }, data: { avatarKey: upload.objectKey }, include: profileInclude })
     ]);
     return this.present(profile);
   }

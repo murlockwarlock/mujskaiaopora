@@ -1,12 +1,17 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { ConversationType, MembershipRole } from '@prisma/client';
+import { ConversationType, MembershipRole, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { CreateGroupConversationDto, CreateMessageDto } from './dto/conversation.dto';
 
 @Injectable()
 export class MessagingService {
+  private readonly conversationSummary = {
+    members: { include: { user: { select: { id: true, displayName: true } } } },
+    messages: { orderBy: { createdAt: 'desc' }, take: 1, include: { sender: { select: { displayName: true } } } }
+  } satisfies Prisma.ConversationInclude;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly realtimeGateway: RealtimeGateway,
@@ -16,10 +21,7 @@ export class MessagingService {
   async listConversations(userId: string) {
     return this.prisma.conversation.findMany({
       where: { members: { some: { userId } } },
-      include: {
-        members: { include: { user: { select: { id: true, displayName: true } } } },
-        messages: { orderBy: { createdAt: 'desc' }, take: 1, include: { sender: { select: { displayName: true } } } }
-      },
+      include: this.conversationSummary,
       orderBy: { updatedAt: 'desc' }
     });
   }
@@ -44,7 +46,7 @@ export class MessagingService {
     const conversation = existing.find(
       (item) => item.members.length === 2 && item.members.every((member) => member.userId === userId || member.userId === otherUserId)
     );
-    if (conversation) return conversation;
+    if (conversation) return this.getConversationSummary(conversation.id);
 
     return this.prisma.conversation.create({
       data: {
@@ -57,7 +59,7 @@ export class MessagingService {
           ]
         }
       },
-      include: { members: true }
+      include: this.conversationSummary
     });
   }
 
@@ -73,7 +75,7 @@ export class MessagingService {
         createdById: userId,
         members: { create: memberIds.map((memberId) => ({ userId: memberId, role: memberId === userId ? MembershipRole.OWNER : MembershipRole.MEMBER })) }
       },
-      include: { members: true }
+      include: this.conversationSummary
     });
   }
 
@@ -126,6 +128,10 @@ export class MessagingService {
     });
     if (!membership) throw new ForbiddenException('Нет доступа к диалогу');
     return membership;
+  }
+
+  private getConversationSummary(conversationId: string) {
+    return this.prisma.conversation.findUniqueOrThrow({ where: { id: conversationId }, include: this.conversationSummary });
   }
 
   private async ensureAvailableUser(userId: string): Promise<void> {
