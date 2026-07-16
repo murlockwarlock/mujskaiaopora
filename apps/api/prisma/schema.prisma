@@ -67,6 +67,8 @@ model User {
   createdConversations Conversation[]       @relation("ConversationCreator")
   blocksCreated        Block[]              @relation("BlockCreator")
   blocksReceived       Block[]              @relation("BlockTarget")
+  dismissedRecommendations RecommendationDismissal[] @relation("RecommendationDismissalOwner")
+  dismissedBy           RecommendationDismissal[] @relation("RecommendationDismissalTarget")
   reportsCreated       Report[]             @relation("ReportCreator")
   reportsReceived      Report[]             @relation("ReportTarget")
   createdCallRooms     CallRoom[]           @relation("CallRoomCreator")
@@ -205,6 +207,16 @@ model Block {
   createdAt DateTime @default(now())
 
   @@unique([creatorId, targetId])
+}
+
+model RecommendationDismissal {
+  userId String
+  candidateId String
+  user User @relation("RecommendationDismissalOwner", fields: [userId], references: [id], onDelete: Cascade)
+  candidate User @relation("RecommendationDismissalTarget", fields: [candidateId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@id([userId, candidateId])
 }
 
 model Report {

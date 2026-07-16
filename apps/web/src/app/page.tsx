@@ -105,6 +105,16 @@ export default function Page() {
     await openConversation(conversation);
   }
 
+  async function dismissRecommendation(userId: string): Promise<void> {
+    await api.request('matching/dismissals', { method: 'POST', body: JSON.stringify({ userId }) });
+    setRecommendations((current) => current.filter((item) => item.id !== userId));
+  }
+
+  async function blockUser(userId: string): Promise<void> {
+    await api.request('matching/blocks', { method: 'POST', body: JSON.stringify({ userId }) });
+    setRecommendations((current) => current.filter((item) => item.id !== userId));
+  }
+
   async function synchronizeTimeZone(currentProfile: Profile): Promise<void> {
     const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
     if (!timeZone || currentProfile.timeZone === timeZone) return;
@@ -129,6 +139,8 @@ export default function Page() {
       onProfile={setProfile}
       onNotice={setNotice}
       onStartConversation={startConversation}
+      onDismissRecommendation={dismissRecommendation}
+      onBlockUser={blockUser}
       onOpenConversation={openConversation}
       onMessages={setMessages}
       onLogout={async () => {
@@ -205,6 +217,8 @@ function Dashboard(props: {
   onProfile: (profile: Profile | null) => void;
   onNotice: (notice: string) => void;
   onStartConversation: (userId: string) => Promise<void>;
+  onDismissRecommendation: (userId: string) => Promise<void>;
+  onBlockUser: (userId: string) => Promise<void>;
   onOpenConversation: (conversation: Conversation) => Promise<void>;
   onMessages: Dispatch<SetStateAction<Message[]>>;
   onLogout: () => Promise<void>;
@@ -255,7 +269,7 @@ function Dashboard(props: {
     <div className="shell">
       <aside className="sidebar"><div className="brand"><span className="brand-mark">◡</span><span>мужская опора</span></div><nav>{([['home', 'Главная'], ['messages', 'Сообщения'], ['calls', 'Встречи'], ['profile', 'Профиль']] as [View, string][]).map(([id, label]) => <button key={id} className={view === id ? 'nav-item active' : 'nav-item'} onClick={() => props.onView(id)}>{label}</button>)}{session.user.role !== 'USER' && <button className={view === 'admin' ? 'nav-item active' : 'nav-item'} onClick={() => props.onView('admin')}>Модерация</button>}</nav><button className="logout" onClick={() => void props.onLogout()}>Выйти</button></aside>
       <main className="workspace"><header className="topbar"><div><small>Личное пространство</small><h1>Привет, {displayName}</h1></div><Avatar url={profile?.avatarUrl} name={displayName} /></header>
-        {view === 'home' && <Home recommendations={recommendations} onStartConversation={props.onStartConversation} />}
+        {view === 'home' && <Home recommendations={recommendations} onStartConversation={props.onStartConversation} onDismiss={props.onDismissRecommendation} onBlock={props.onBlockUser} />}
         {view === 'messages' && <Messages conversations={conversations} selected={selectedConversation} messages={messages} currentUserId={session.user.id} timeZone={profile?.timeZone ?? 'UTC'} onOpen={props.onOpenConversation} onMessages={props.onMessages} onStartCall={startConversationCall} />}
         {view === 'calls' && <Calls onNotice={props.onNotice} roomId={acceptedRoomId} onRoomConsumed={() => setAcceptedRoomId(null)} />}
         {view === 'profile' && profile && <ProfileEditor profile={profile} onProfile={props.onProfile} onNotice={props.onNotice} />}
@@ -267,8 +281,8 @@ function Dashboard(props: {
   );
 }
 
-function Home({ recommendations, onStartConversation }: { recommendations: Recommendation[]; onStartConversation: (userId: string) => Promise<void> }) {
-  return <><section className="hero"><div><p className="eyebrow">Безопасное сообщество</p><h2>Подходящие собеседники</h2><p>Подбор по языку и темам общения. Вы в любой момент можете скрыть анкету или заблокировать пользователя.</p></div></section><section><div className="section-title"><div><h2>Возможно, вам будет комфортно поговорить</h2><p>Рекомендации строятся прозрачно — по общим интересам и языку.</p></div></div><div className="people-grid">{recommendations.map((person) => <article className="person-card" key={person.id}><Avatar url={person.profile?.avatarUrl} name={person.displayName} /><div><h3>{person.displayName}</h3><small>{person.profile?.city ?? 'Город не указан'}</small></div><div className="tags">{person.profile?.interests.slice(0, 3).map((item) => <span key={item}>{item}</span>)}</div><button className="text-button" onClick={() => void onStartConversation(person.id)}>Написать →</button></article>)}</div></section></>;
+function Home({ recommendations, onStartConversation, onDismiss, onBlock }: { recommendations: Recommendation[]; onStartConversation: (userId: string) => Promise<void>; onDismiss: (userId: string) => Promise<void>; onBlock: (userId: string) => Promise<void> }) {
+  return <><section className="hero"><div><p className="eyebrow">Безопасное сообщество</p><h2>Подходящие собеседники</h2><p>Подбор по языку и темам общения. Вы в любой момент можете скрыть анкету или заблокировать пользователя.</p></div></section><section><div className="section-title"><div><h2>Возможно, вам будет комфортно поговорить</h2><p>Рекомендации строятся прозрачно — по общим интересам и языку.</p></div></div><div className="people-grid">{recommendations.map((person) => <article className="person-card" key={person.id}><Avatar url={person.profile?.avatarUrl} name={person.displayName} /><div><h3>{person.displayName}</h3><small>{person.profile?.city ?? 'Город не указан'}</small></div><div className="tags">{person.profile?.interests.slice(0, 3).map((item) => <span key={item}>{item}</span>)}</div><button className="text-button" onClick={() => void onStartConversation(person.id)}>Написать →</button><div className="person-actions"><button className="text-button" onClick={() => void onDismiss(person.id)}>Скрыть</button><button className="text-button danger-link" onClick={() => void onBlock(person.id)}>Заблокировать</button></div></article>)}</div></section></>;
 }
 
 function Messages({ conversations, selected, messages, currentUserId, timeZone, onOpen, onMessages, onStartCall }: { conversations: Conversation[]; selected: Conversation | null; messages: Message[]; currentUserId: string; timeZone: string; onOpen: (conversation: Conversation) => Promise<void>; onMessages: Dispatch<SetStateAction<Message[]>>; onStartCall: (conversationId: string) => Promise<void> }) {

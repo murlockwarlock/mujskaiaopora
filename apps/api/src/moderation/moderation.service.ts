@@ -1,11 +1,16 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { ReportStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
 import { CreateReportDto, ResolveReportDto } from './dto/report.dto';
+import { UpdateUserStatusDto } from './dto/user-status.dto';
 
 @Injectable()
 export class ModerationService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly auditService: AuditService
+  ) {}
 
   async createReport(userId: string, dto: CreateReportDto) {
     if (dto.messageId) {
@@ -34,5 +39,17 @@ export class ModerationService {
       where: { id: reportId },
       data: { status: ReportStatus.RESOLVED, resolution: dto.resolution.trim() }
     });
+  }
+
+  async suspendUser(actorId: string, userId: string, dto: UpdateUserStatusDto) {
+    const user = await this.prisma.user.update({ where: { id: userId }, data: { status: 'SUSPENDED' }, select: { id: true, displayName: true } });
+    await this.auditService.record({ actorUserId: actorId, action: 'moderation.user_suspended', resource: 'user', resourceId: user.id, outcome: 'success', metadata: { reason: dto.reason.trim() } });
+    return user;
+  }
+
+  async restoreUser(actorId: string, userId: string, dto: UpdateUserStatusDto) {
+    const user = await this.prisma.user.update({ where: { id: userId }, data: { status: 'ACTIVE' }, select: { id: true, displayName: true } });
+    await this.auditService.record({ actorUserId: actorId, action: 'moderation.user_restored', resource: 'user', resourceId: user.id, outcome: 'success', metadata: { reason: dto.reason.trim() } });
+    return user;
   }
 }

@@ -93,6 +93,14 @@ export class MessagingService {
 
   async createMessage(userId: string, conversationId: string, dto: CreateMessageDto) {
     await this.assertMembership(userId, conversationId);
+    const conversation = await this.prisma.conversation.findUniqueOrThrow({ where: { id: conversationId }, include: { members: true } });
+    if (conversation.type === ConversationType.DIRECT) {
+      const otherUserId = conversation.members.find((member) => member.userId !== userId)?.userId;
+      if (otherUserId) {
+        const block = await this.prisma.block.findFirst({ where: { OR: [{ creatorId: userId, targetId: otherUserId }, { creatorId: otherUserId, targetId: userId }] } });
+        if (block) throw new ForbiddenException('Отправка сообщений в этот диалог недоступна');
+      }
+    }
     const existing = await this.prisma.message.findUnique({
       where: { senderId_clientMessageId: { senderId: userId, clientMessageId: dto.clientMessageId } },
       include: { sender: { select: { id: true, displayName: true } } }
