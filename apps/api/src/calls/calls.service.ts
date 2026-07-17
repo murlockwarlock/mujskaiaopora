@@ -1,5 +1,6 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { CallInvitationStatus, CallRoomStatus } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import { AccessToken } from 'livekit-server-sdk';
 import { PrismaService } from '../prisma/prisma.service';
@@ -29,10 +30,11 @@ export class CallsService {
       }
     });
     if (dto.conversationId) {
+      const caller = await this.getCaller(userId);
       const members = await this.prisma.conversationMember.findMany({ where: { conversationId: dto.conversationId }, select: { userId: true } });
       const invitees = members.filter((member) => member.userId !== userId);
       await this.prisma.callInvitation.createMany({ data: invitees.map((invitee) => ({ callRoomId: room.id, userId: invitee.userId })) });
-      invitees.forEach((invitee) => this.realtimeGateway.emitUser(invitee.userId, 'call:incoming', { roomId: room.id, title: room.title, callerId: userId }));
+      invitees.forEach((invitee) => this.realtimeGateway.emitUser(invitee.userId, 'call:incoming', { roomId: room.id, title: room.title, callerId: userId, caller }));
     }
     return room;
   }
@@ -45,6 +47,30 @@ export class CallsService {
     });
     const connection = await this.joinRoom(userId, room.id);
     return { roomId: room.id, ...connection };
+  }
+
+  async listPendingInvitations(userId: string) {
+    const invitations = await this.prisma.callInvitation.findMany({
+      where: { userId, status: CallInvitationStatus.PENDING, callRoom: { status: { in: [CallRoomStatus.SCHEDULED, CallRoomStatus.LIVE] } } },
+      include: {
+        callRoom: {
+          include: {
+            createdBy: { select: { id: true, displayName: true, profile: { select: { avatarKey: true } } } }
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+    return invitations.map((invitation) => ({
+      roomId: invitation.callRoomId,
+      title: invitation.callRoom.title,
+      callerId: invitation.callRoom.createdById,
+      caller: {
+        id: invitation.callRoom.createdBy.id,
+        displayName: invitation.callRoom.createdBy.displayName,
+        avatarUrl: this.storage.getPublicUrl(invitation.callRoom.createdBy.profile?.avatarKey ?? null)
+      }
+    }));
   }
 
   async createRoomWithConnection(userId: string, dto: CreateCallRoomDto) {
@@ -96,7 +122,8 @@ export class CallsService {
     if (activeParticipants + currentInvitations.length + candidates.length > room.maxParticipants) throw new ForbiddenException('В комнате нет свободных мест');
     await Promise.all(candidates.map((id) => this.ensureAvailableUser(id)));
     await this.prisma.callInvitation.createMany({ data: candidates.map((invitee) => ({ callRoomId: roomId, userId: invitee })) });
-    candidates.forEach((invitee) => this.realtimeGateway.emitUser(invitee, 'call:incoming', { roomId, title: room.title, callerId: userId }));
+    const caller = await this.getCaller(userId);
+    candidates.forEach((invitee) => this.realtimeGateway.emitUser(invitee, 'call:incoming', { roomId, title: room.title, callerId: userId, caller }));
     return { invited: candidates.length };
   }
 
@@ -165,5 +192,13 @@ export class CallsService {
   private async ensureAvailableUser(userId: string): Promise<void> {
     const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { status: true } });
     if (!user || user.status !== 'ACTIVE') throw new NotFoundException('Пользователь недоступен');
+  }
+
+  private async getCaller(userId: string) {
+    const user = await this.prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { id: true, displayName: true, profile: { select: { avatarKey: true } } }
+    });
+    return { id: user.id, displayName: user.displayName, avatarUrl: this.storage.getPublicUrl(user.profile?.avatarKey ?? null) };
   }
 }

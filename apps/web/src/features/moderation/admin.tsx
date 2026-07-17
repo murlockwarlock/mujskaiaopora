@@ -21,7 +21,7 @@ export function Admin() {
     }
   }
 
-  useEffect(() => { void reload(); }, []);
+  useEffect(() => { void Promise.resolve().then(reload); }, []);
 
   async function suspend(userId: string): Promise<void> {
     try {

@@ -32,7 +32,7 @@ export type Message = {
   id: string;
   body: string;
   createdAt: string;
-  sender: { id: string; displayName: string };
+  sender: { id: string; displayName: string; avatarUrl?: string | null };
 };
 
 export type View = 'home' | 'messages' | 'calls' | 'call' | 'profile' | 'admin';
@@ -41,4 +41,5 @@ export type IncomingCall = {
   roomId: string;
   title: string;
   callerId: string;
+  caller: { id: string; displayName: string; avatarUrl: string | null };
 };

@@ -23,6 +23,11 @@ export class CallsController {
     return this.callsService.startConversationCall(user.sub, conversationId, dto.mode);
   }
 
+  @Get('invitations')
+  listInvitations(@CurrentUser() user: AuthenticatedUser) {
+    return this.callsService.listPendingInvitations(user.sub);
+  }
+
   @Post('rooms/:roomId/join')
   joinRoom(@CurrentUser() user: AuthenticatedUser, @Param('roomId') roomId: string) {
     return this.callsService.joinRoom(user.sub, roomId);

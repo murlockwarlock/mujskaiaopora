@@ -139,7 +139,7 @@ export class MessagingService {
     this.realtimeGateway.emitMessage(conversationId, message);
     const members = await this.prisma.conversationMember.findMany({ where: { conversationId }, select: { userId: true } });
     members.filter((member) => member.userId !== userId).forEach((member) => {
-      this.realtimeGateway.emitUser(member.userId, 'message:notification', { conversationId, senderName: message.sender.displayName, createdAt: message.createdAt });
+      this.realtimeGateway.emitUser(member.userId, 'message:notification', { conversationId, message });
     });
     return message;
   }

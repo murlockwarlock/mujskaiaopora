@@ -16,8 +16,11 @@ type MessagesProps = {
   recommendations: Recommendation[];
   currentUserId: string;
   timeZone: string;
+  unreadCounts: Record<string, number>;
   onOpen: (conversation: Conversation) => Promise<void>;
+  onClose: () => void;
   onMessages: Dispatch<SetStateAction<Message[]>>;
+  onConversationMessage: (conversationId: string, message: Message) => void;
   onStartCall: (conversationId: string, mode: 'AUDIO' | 'VIDEO') => Promise<void>;
   onCreateGroup: (title: string, userIds: string[]) => Promise<void>;
   onAddMembers: (conversationId: string, userIds: string[]) => Promise<void>;
@@ -33,10 +36,11 @@ export function Messages(props: MessagesProps) {
     const token = api.getAccessToken();
     const endpoint = process.env.NEXT_PUBLIC_REALTIME_URL || window.location.origin;
     if (!selected || !token || !endpoint) return;
-    const socket = io(endpoint, { auth: { token }, transports: ['websocket'] });
+    const socket = io(endpoint, { auth: { token }, transports: ['websocket'], reconnection: true, reconnectionDelay: 1000, reconnectionDelayMax: 5000 });
     socket.emit('conversation:join', { conversationId: selected.id });
     socket.on('message:created', (message: Message) => {
       props.onMessages((current) => (current.some((item) => item.id === message.id) ? current : [...current, message]));
+      props.onConversationMessage(selected.id, message);
     });
     return () => {
       socket.disconnect();
@@ -51,6 +55,7 @@ export function Messages(props: MessagesProps) {
       body: JSON.stringify({ clientMessageId: crypto.randomUUID(), body: text })
     });
     props.onMessages((current) => (current.some((item) => item.id === message.id) ? current : [...current, message]));
+    props.onConversationMessage(selected.id, message);
     setText('');
   }
 
@@ -59,18 +64,18 @@ export function Messages(props: MessagesProps) {
     setEmojiOpen(false);
   }
 
-  return <section className="chat">
+  return <section className={selected ? 'chat chat-has-selection' : 'chat'}>
     <aside className="chat-list">
       <div className="chat-list-heading"><h2>Диалоги</h2><button className="create-group-button" type="button" onClick={() => setGroupDialog('create')}>+ Группа</button></div>
       {conversations.map((conversation) => <button key={conversation.id} className={selected?.id === conversation.id ? 'conversation active' : 'conversation'} onClick={() => void props.onOpen(conversation)}>
-        <strong>{getConversationTitle(conversation, currentUserId)}</strong>
+        <strong>{getConversationTitle(conversation, currentUserId)}{props.unreadCounts[conversation.id] ? <span className="conversation-unread">{props.unreadCounts[conversation.id] > 99 ? '99+' : props.unreadCounts[conversation.id]}</span> : null}</strong>
         <small>{conversation.type === 'GROUP' ? `${conversation.members.length} участников` : conversation.messages[0]?.body ?? 'Новый диалог'}</small>
       </button>)}
     </aside>
     <div className="conversation-panel">
       {selected ? <>
         <header className="conversation-header">
-          <div><h2>{getConversationTitle(selected, currentUserId)}</h2>{selected.type === 'GROUP' && <small className="participant-count">{selected.members.length} из 10 участников</small>}</div>
+          <div><button type="button" className="mobile-chat-back" onClick={props.onClose}>← Все диалоги</button><h2>{getConversationTitle(selected, currentUserId)}</h2>{selected.type === 'GROUP' && <small className="participant-count">{selected.members.length} из 10 участников</small>}</div>
           <div className="call-header-actions">
             {selected.type === 'GROUP' && selected.members.some((member) => member.user?.id === currentUserId && member.role === 'OWNER') && <button type="button" className="icon-button" aria-label="Добавить участников" title="Добавить участников" onClick={() => setGroupDialog('members')}><AddUserIcon /></button>}
             <button type="button" className="icon-button" aria-label="Аудиозвонок" title="Аудиозвонок" onClick={() => void props.onStartCall(selected.id, 'AUDIO')}><PhoneIcon /></button>

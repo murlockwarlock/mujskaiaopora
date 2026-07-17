@@ -4,7 +4,7 @@ type ApiResponse = { status: number; body: unknown };
 const baseUrl = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') ?? '';
 const accessTokenStorageKey = 'opora.access-token';
 
-class ApiClient {
+export class ApiClient {
   private accessToken: string | null = null;
   private refreshPromise: Promise<boolean> | null = null;
 
@@ -71,7 +71,7 @@ class ApiClient {
   async request<T = void>(path: string, options: RequestOptions = {}, retried = false): Promise<T> {
     const { authenticated = true, headers, ...init } = options;
     const response = await this.send(path, init, {
-      'Content-Type': 'application/json',
+      ...(init.body ? { 'Content-Type': 'application/json' } : {}),
       ...(authenticated && this.accessToken ? { Authorization: `Bearer ${this.accessToken}` } : {}),
       ...headers
     });

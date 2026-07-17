@@ -19,12 +19,6 @@ export default function Page() {
   const [loading, setLoading] = useState(true);
   const restoreStarted = useRef(false);
 
-  useEffect(() => {
-    if (restoreStarted.current) return;
-    restoreStarted.current = true;
-    void restore();
-  }, []);
-
   async function restore(): Promise<void> {
     if (!api.getAccessToken() && !(await api.refresh())) {
       setLoading(false);
@@ -81,6 +75,21 @@ export default function Page() {
     setView('messages');
   }
 
+  function closeConversation(): void {
+    setSelectedConversation(null);
+    setMessages([]);
+  }
+
+  function updateConversation(conversationId: string, message: Message): void {
+    setConversations((current) => {
+      const conversation = current.find((item) => item.id === conversationId);
+      if (!conversation) return current;
+      const updated = { ...conversation, messages: [{ body: message.body, sender: { displayName: message.sender.displayName } }] };
+      return [updated, ...current.filter((item) => item.id !== conversationId)];
+    });
+    setSelectedConversation((current) => current?.id === conversationId ? { ...current, messages: [{ body: message.body, sender: { displayName: message.sender.displayName } }] } : current);
+  }
+
   async function startConversation(userId: string): Promise<void> {
     const conversation = await api.request<Conversation>('conversations/direct', { method: 'POST', body: JSON.stringify({ userId }) });
     setConversations((current) => (current.some((item) => item.id === conversation.id) ? current : [conversation, ...current]));
@@ -119,8 +128,14 @@ export default function Page() {
     }
   }
 
+  useEffect(() => {
+    if (restoreStarted.current) return;
+    restoreStarted.current = true;
+    void restore();
+  }, []);
+
   if (loading) return <main className="loading">Загружаем пространство…</main>;
   if (!session) return <AuthScreen onAuthenticated={completeAuthentication} />;
 
-  return <Dashboard session={session} profile={profile} recommendations={recommendations} availableUsers={availableUsers} conversations={conversations} selectedConversation={selectedConversation} messages={messages} view={view} notice={notice} onView={setView} onProfile={setProfile} onNotice={setNotice} onStartConversation={startConversation} onDismissRecommendation={dismissRecommendation} onBlockUser={blockUser} onOpenConversation={openConversation} onCreateGroup={createGroup} onAddGroupMembers={addGroupMembers} onMessages={setMessages} onLogout={async () => { await api.logout(); setSession(null); setProfile(null); }} />;
+  return <Dashboard session={session} profile={profile} recommendations={recommendations} availableUsers={availableUsers} conversations={conversations} selectedConversation={selectedConversation} messages={messages} view={view} notice={notice} onView={setView} onProfile={setProfile} onNotice={setNotice} onStartConversation={startConversation} onDismissRecommendation={dismissRecommendation} onBlockUser={blockUser} onOpenConversation={openConversation} onCloseConversation={closeConversation} onConversationMessage={updateConversation} onCreateGroup={createGroup} onAddGroupMembers={addGroupMembers} onMessages={setMessages} onLogout={async () => { await api.logout(); setSession(null); setProfile(null); }} />;
 }
