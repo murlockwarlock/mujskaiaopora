@@ -4,7 +4,7 @@ import { randomUUID } from 'crypto';
 import { AccessToken } from 'livekit-server-sdk';
 import { PrismaService } from '../prisma/prisma.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
-import { CreateCallRoomDto } from './dto/calls.dto';
+import { CreateCallMessageDto, CreateCallRoomDto } from './dto/calls.dto';
 
 @Injectable()
 export class CallsService {
@@ -48,7 +48,7 @@ export class CallsService {
   async createRoomWithConnection(userId: string, dto: CreateCallRoomDto) {
     const room = await this.createRoom(userId, dto);
     const connection = await this.joinRoom(userId, room.id);
-    return { ...room, ...connection };
+    return { ...room, ...connection, canInvite: true };
   }
 
   async joinRoom(userId: string, roomId: string) {
@@ -75,7 +75,55 @@ export class CallsService {
       { identity: `user_${userId}`, ttl: '10m' }
     );
     token.addGrant({ roomJoin: true, room: room.livekitRoomName, canPublish: true, canSubscribe: true });
-    return { token: await token.toJwt(), url: this.config.getOrThrow<string>('LIVEKIT_URL'), roomName: room.livekitRoomName };
+    return { token: await token.toJwt(), url: this.config.getOrThrow<string>('LIVEKIT_URL'), roomName: room.livekitRoomName, inviteCode: room.inviteCode, canInvite: room.createdById === userId };
+  }
+
+  async inviteUsers(userId: string, roomId: string, userIds: string[]) {
+    const room = await this.prisma.callRoom.findUniqueOrThrow({ where: { id: roomId } });
+    if (room.createdById !== userId) throw new ForbiddenException('Приглашать пользователей может только создатель встречи');
+    if (room.status === 'ENDED' || room.status === 'CANCELLED') throw new NotFoundException('Комната недоступна');
+    const currentInvitations = await this.prisma.callInvitation.findMany({ where: { callRoomId: roomId }, select: { userId: true } });
+    const invitedIds = new Set(currentInvitations.map((invitation) => invitation.userId));
+    const candidates = [...new Set(userIds)].filter((id) => id !== userId && !invitedIds.has(id));
+    if (!candidates.length) return { invited: 0 };
+    const activeParticipants = await this.prisma.callParticipant.count({ where: { callRoomId: roomId, leftAt: null } });
+    if (activeParticipants + currentInvitations.length + candidates.length > room.maxParticipants) throw new ForbiddenException('В комнате нет свободных мест');
+    await Promise.all(candidates.map((id) => this.ensureAvailableUser(id)));
+    await this.prisma.callInvitation.createMany({ data: candidates.map((invitee) => ({ callRoomId: roomId, userId: invitee })) });
+    candidates.forEach((invitee) => this.realtimeGateway.emitUser(invitee, 'call:incoming', { roomId, title: room.title, callerId: userId }));
+    return { invited: candidates.length };
+  }
+
+  async joinByInvite(userId: string, inviteCode: string) {
+    const room = await this.prisma.callRoom.findUnique({ where: { inviteCode } });
+    if (!room || room.status === 'ENDED' || room.status === 'CANCELLED') throw new NotFoundException('Ссылка на встречу недоступна');
+    const connection = await this.joinRoom(userId, room.id);
+    return { roomId: room.id, ...connection };
+  }
+
+  async listMessages(userId: string, roomId: string) {
+    await this.assertCallParticipant(userId, roomId);
+    return this.prisma.callMessage.findMany({
+      where: { callRoomId: roomId },
+      orderBy: { createdAt: 'asc' },
+      take: 200,
+      include: { sender: { select: { id: true, displayName: true } } }
+    });
+  }
+
+  async createMessage(userId: string, roomId: string, dto: CreateCallMessageDto) {
+    await this.assertCallParticipant(userId, roomId);
+    const existing = await this.prisma.callMessage.findUnique({
+      where: { senderId_clientMessageId: { senderId: userId, clientMessageId: dto.clientMessageId } },
+      include: { sender: { select: { id: true, displayName: true } } }
+    });
+    if (existing) return existing;
+    const message = await this.prisma.callMessage.create({
+      data: { callRoomId: roomId, senderId: userId, clientMessageId: dto.clientMessageId, body: dto.body.trim() },
+      include: { sender: { select: { id: true, displayName: true } } }
+    });
+    this.realtimeGateway.emitCallMessage(roomId, message);
+    return message;
   }
 
   async leaveRoom(userId: string, roomId: string) {
@@ -101,5 +149,15 @@ export class CallsService {
       where: { conversationId_userId: { conversationId, userId } }
     });
     if (!membership) throw new ForbiddenException('Нет доступа к комнате');
+  }
+
+  private async assertCallParticipant(userId: string, roomId: string): Promise<void> {
+    const participant = await this.prisma.callParticipant.findUnique({ where: { callRoomId_userId: { callRoomId: roomId, userId } } });
+    if (!participant || participant.leftAt) throw new ForbiddenException('Нет доступа к чату встречи');
+  }
+
+  private async ensureAvailableUser(userId: string): Promise<void> {
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { status: true } });
+    if (!user || user.status !== 'ACTIVE') throw new NotFoundException('Пользователь недоступен');
   }
 }

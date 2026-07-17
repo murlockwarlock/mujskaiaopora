@@ -1,6 +1,6 @@
 'use client';
 
-import { Dispatch, SetStateAction, useEffect, useState } from 'react';
+import { Dispatch, SetStateAction, useEffect, useRef, useState } from 'react';
 import { io } from 'socket.io-client';
 import { Avatar } from '@/components/avatar';
 import { Session, api } from '@/lib/api';
@@ -37,7 +37,8 @@ type DashboardProps = {
 export function Dashboard(props: DashboardProps) {
   const { session, profile, recommendations, conversations, selectedConversation, messages, view } = props;
   const [incomingCall, setIncomingCall] = useState<IncomingCall | null>(null);
-  const [activeCall, setActiveCall] = useState<{ roomId: string; token?: string; url?: string; mode: 'AUDIO' | 'VIDEO' } | null>(null);
+  const [activeCall, setActiveCall] = useState<{ roomId: string; token?: string; url?: string; inviteCode?: string; canInvite?: boolean; mode: 'AUDIO' | 'VIDEO' } | null>(null);
+  const inviteJoinStarted = useRef(false);
   const displayName = profile?.user?.displayName ?? session.user.displayName;
 
   useEffect(() => {
@@ -66,9 +67,22 @@ export function Dashboard(props: DashboardProps) {
     return () => window.clearInterval(interval);
   }, [incomingCall, profile?.callSoundEnabled]);
 
+  useEffect(() => {
+    const inviteCode = new URLSearchParams(window.location.search).get('join');
+    if (!inviteCode || inviteJoinStarted.current) return;
+    inviteJoinStarted.current = true;
+    window.history.replaceState({}, '', window.location.pathname);
+    void api.request<{ roomId: string; token: string; url: string; inviteCode: string; canInvite: boolean }>(`calls/invites/${inviteCode}/join`, { method: 'POST' })
+      .then((connection) => {
+        setActiveCall({ ...connection, mode: 'VIDEO' });
+        props.onView('call');
+      })
+      .catch((cause) => props.onNotice(cause instanceof Error ? cause.message : 'Не удалось подключиться к встрече'));
+  }, [props]);
+
   async function startConversationCall(conversationId: string, mode: 'AUDIO' | 'VIDEO'): Promise<void> {
     try {
-      const connection = await api.request<{ roomId: string; token: string; url: string }>(`calls/conversations/${conversationId}/start`, { method: 'POST', body: JSON.stringify({ mode }) });
+      const connection = await api.request<{ roomId: string; token: string; url: string; inviteCode: string; canInvite: boolean }>(`calls/conversations/${conversationId}/start`, { method: 'POST', body: JSON.stringify({ mode }) });
       setActiveCall({ ...connection, mode });
       props.onView('call');
     } catch (cause) {
@@ -87,5 +101,5 @@ export function Dashboard(props: DashboardProps) {
     props.onView('messages');
   }
 
-  return <div className="shell"><aside className="sidebar"><div className="brand"><span className="brand-mark">◡</span><span>мужская опора</span></div><nav>{([['home', 'Главная'], ['messages', 'Сообщения'], ['calls', 'Встречи'], ['profile', 'Профиль']] as [View, string][]).map(([id, label]) => <button key={id} className={view === id ? 'nav-item active' : 'nav-item'} onClick={() => props.onView(id)}>{label}</button>)}{session.user.role !== 'USER' && <button className={view === 'admin' ? 'nav-item active' : 'nav-item'} onClick={() => props.onView('admin')}>Модерация</button>}</nav><button className="logout" onClick={() => void props.onLogout()}>Выйти</button></aside><main className="workspace"><header className="topbar"><div><small>Личное пространство</small><h1>Привет, {displayName}</h1></div><Avatar url={profile?.avatarUrl} name={displayName} /></header>{view === 'home' && <Home recommendations={recommendations} onStartConversation={props.onStartConversation} onDismiss={props.onDismissRecommendation} onBlock={props.onBlockUser} />}{view === 'messages' && <Messages conversations={conversations} selected={selectedConversation} messages={messages} recommendations={recommendations} currentUserId={session.user.id} timeZone={profile?.timeZone ?? 'UTC'} onOpen={props.onOpenConversation} onMessages={props.onMessages} onStartCall={startConversationCall} onCreateGroup={props.onCreateGroup} onAddMembers={props.onAddGroupMembers} />}{view === 'profile' && profile && <ProfileEditor profile={profile} onProfile={props.onProfile} onNotice={props.onNotice} />}{view === 'admin' && <Admin />}</main><Calls onNotice={props.onNotice} roomId={activeCall?.roomId ?? null} mode={activeCall?.mode} connection={activeCall?.token && activeCall.url ? { token: activeCall.token, url: activeCall.url } : undefined} expanded={view === 'calls' || view === 'call'} onOpen={() => props.onView(view === 'call' ? 'messages' : 'call')} onEnd={endCall} onStarted={(call) => setActiveCall(call)} />{incomingCall && <div className="incoming-call"><strong>{incomingCall.title}</strong><span>Входящий видеозвонок</span><div><button className="primary" onClick={() => { setActiveCall({ roomId: incomingCall.roomId, mode: 'VIDEO' }); setIncomingCall(null); props.onView('call'); }}>Принять</button><button className="secondary" onClick={() => void declineIncomingCall()}>Отклонить</button></div></div>}{props.notice && <div className="toast" onAnimationEnd={() => props.onNotice('')}>{props.notice}</div>}</div>;
+  return <div className="shell"><aside className="sidebar"><div className="brand"><span className="brand-mark">◡</span><span>мужская опора</span></div><nav>{([['home', 'Главная'], ['messages', 'Сообщения'], ['calls', 'Встречи'], ['profile', 'Профиль']] as [View, string][]).map(([id, label]) => <button key={id} className={view === id ? 'nav-item active' : 'nav-item'} onClick={() => props.onView(id)}>{label}</button>)}{session.user.role !== 'USER' && <button className={view === 'admin' ? 'nav-item active' : 'nav-item'} onClick={() => props.onView('admin')}>Модерация</button>}</nav><button className="logout" onClick={() => void props.onLogout()}>Выйти</button></aside><main className="workspace"><header className="topbar"><div><small>Личное пространство</small><h1>Привет, {displayName}</h1></div><Avatar url={profile?.avatarUrl} name={displayName} /></header>{view === 'home' && <Home recommendations={recommendations} onStartConversation={props.onStartConversation} onDismiss={props.onDismissRecommendation} onBlock={props.onBlockUser} />}{view === 'messages' && <Messages conversations={conversations} selected={selectedConversation} messages={messages} recommendations={recommendations} currentUserId={session.user.id} timeZone={profile?.timeZone ?? 'UTC'} onOpen={props.onOpenConversation} onMessages={props.onMessages} onStartCall={startConversationCall} onCreateGroup={props.onCreateGroup} onAddMembers={props.onAddGroupMembers} />}{view === 'profile' && profile && <ProfileEditor profile={profile} onProfile={props.onProfile} onNotice={props.onNotice} />}{view === 'admin' && <Admin />}</main><Calls onNotice={props.onNotice} roomId={activeCall?.roomId ?? null} mode={activeCall?.mode} connection={activeCall?.token && activeCall.url ? { token: activeCall.token, url: activeCall.url, inviteCode: activeCall.inviteCode, canInvite: activeCall.canInvite } : undefined} expanded={view === 'calls' || view === 'call'} recommendations={recommendations} currentUserId={session.user.id} timeZone={profile?.timeZone ?? 'UTC'} onOpen={() => props.onView(view === 'call' ? 'messages' : 'call')} onEnd={endCall} onStarted={(call) => setActiveCall(call)} />{incomingCall && <div className="incoming-call"><strong>{incomingCall.title}</strong><span>Входящий видеозвонок</span><div><button className="primary" onClick={() => { setActiveCall({ roomId: incomingCall.roomId, mode: 'VIDEO' }); setIncomingCall(null); props.onView('call'); }}>Принять</button><button className="secondary" onClick={() => void declineIncomingCall()}>Отклонить</button></div></div>}{props.notice && <div className="toast" onAnimationEnd={() => props.onNotice('')}>{props.notice}</div>}</div>;
 }

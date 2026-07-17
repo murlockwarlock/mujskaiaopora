@@ -44,12 +44,28 @@ export class RealtimeGateway implements OnGatewayConnection {
     return { ok: true };
   }
 
+  @SubscribeMessage('call:join')
+  async joinCall(socket: AuthenticatedSocket, payload: { roomId: string }): Promise<{ ok: boolean }> {
+    const userId = socket.data.user?.sub;
+    if (!userId) throw new UnauthorizedException();
+    const participant = await this.prisma.callParticipant.findUnique({
+      where: { callRoomId_userId: { callRoomId: payload.roomId, userId } }
+    });
+    if (!participant || participant.leftAt) throw new UnauthorizedException();
+    socket.join(`call:${payload.roomId}`);
+    return { ok: true };
+  }
+
   emitMessage(conversationId: string, message: unknown): void {
     this.server.to(`conversation:${conversationId}`).emit('message:created', message);
   }
 
   emitUser(userId: string, event: string, payload: unknown): void {
     this.server.to(`user:${userId}`).emit(event, payload);
+  }
+
+  emitCallMessage(roomId: string, message: unknown): void {
+    this.server.to(`call:${roomId}`).emit('call:message', message);
   }
 
   private extractToken(socket: Socket): string {

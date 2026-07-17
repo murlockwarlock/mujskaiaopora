@@ -74,6 +74,7 @@ model User {
   createdCallRooms     CallRoom[]           @relation("CallRoomCreator")
   callParticipants     CallParticipant[]
   callInvitations      CallInvitation[]
+  sentCallMessages     CallMessage[]         @relation("CallMessageSender")
   createdAt            DateTime             @default(now())
   updatedAt            DateTime             @updatedAt
 }
@@ -240,6 +241,7 @@ model Report {
 model CallRoom {
   id              String         @id @default(uuid())
   livekitRoomName String         @unique
+  inviteCode      String         @unique @default(uuid())
   title           String
   conversationId  String?
   createdById     String
@@ -251,6 +253,7 @@ model CallRoom {
   createdBy       User           @relation("CallRoomCreator", fields: [createdById], references: [id], onDelete: Restrict)
   participants    CallParticipant[]
   invitations     CallInvitation[]
+  messages        CallMessage[]
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
 
@@ -279,4 +282,18 @@ model CallInvitation {
 
   @@id([callRoomId, userId])
   @@index([userId, status, createdAt])
+}
+
+model CallMessage {
+  id              String   @id @default(uuid())
+  callRoomId      String
+  senderId        String
+  clientMessageId String
+  body            String
+  callRoom        CallRoom @relation(fields: [callRoomId], references: [id], onDelete: Cascade)
+  sender          User     @relation("CallMessageSender", fields: [senderId], references: [id], onDelete: Restrict)
+  createdAt       DateTime @default(now())
+
+  @@unique([senderId, clientMessageId])
+  @@index([callRoomId, createdAt])
 }
