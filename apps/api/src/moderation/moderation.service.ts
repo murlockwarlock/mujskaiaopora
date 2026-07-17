@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { ReportStatus } from '@prisma/client';
+import { ReportStatus, UserStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { CreateReportDto, ResolveReportDto } from './dto/report.dto';
@@ -47,6 +47,20 @@ export class ModerationService {
       },
       orderBy: { createdAt: 'desc' }
     });
+  }
+
+  async statistics() {
+    const dayStart = new Date();
+    dayStart.setHours(0, 0, 0, 0);
+    const [users, activeUsers, suspendedUsers, openReports, messagesToday, newUsersToday] = await Promise.all([
+      this.prisma.user.count(),
+      this.prisma.user.count({ where: { status: UserStatus.ACTIVE } }),
+      this.prisma.user.count({ where: { status: UserStatus.SUSPENDED } }),
+      this.prisma.report.count({ where: { status: { in: [ReportStatus.OPEN, ReportStatus.IN_REVIEW] } } }),
+      this.prisma.message.count({ where: { createdAt: { gte: dayStart }, deletedAt: null } }),
+      this.prisma.user.count({ where: { createdAt: { gte: dayStart } } })
+    ]);
+    return { users, activeUsers, suspendedUsers, openReports, messagesToday, newUsersToday };
   }
 
   async resolveReport(actorId: string, reportId: string, dto: ResolveReportDto) {

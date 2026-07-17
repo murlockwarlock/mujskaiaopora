@@ -76,7 +76,7 @@ export function Messages(props: MessagesProps) {
 
   return <section className={selected ? 'chat chat-has-selection' : 'chat'}>
     <aside className="chat-list">
-      <div className="chat-list-heading"><h2>Диалоги</h2><button className="create-group-button" type="button" onClick={() => setGroupDialog('create')}>+ Группа</button></div>
+      <div className="chat-list-heading"><h2>Диалоги</h2><button className="create-group-button" type="button" onClick={() => setGroupDialog('create')}>+ Общий чат</button></div>
       {conversations.map((conversation) => <button key={conversation.id} className={selected?.id === conversation.id ? 'conversation active' : 'conversation'} onClick={() => void props.onOpen(conversation)}>
         <strong>{getConversationTitle(conversation, currentUserId)}{props.unreadCounts[conversation.id] ? <span className="conversation-unread">{props.unreadCounts[conversation.id] > 99 ? '99+' : props.unreadCounts[conversation.id]}</span> : null}</strong>
         <small>{conversation.type === 'GROUP' ? `${conversation.members.length} участников` : conversation.messages[0]?.body ?? 'Новый диалог'}</small>
@@ -148,7 +148,7 @@ function GroupDialog({ mode, recommendations, selected, onClose, onCreate, onAdd
 
   return <div className="group-dialog-backdrop" role="presentation" onMouseDown={onClose}>
     <form className="group-dialog" onSubmit={(event) => void submit(event)} onMouseDown={(event) => event.stopPropagation()}>
-      <div className="group-dialog-header"><div><h2>{mode === 'create' ? 'Новая группа' : 'Добавить участников'}</h2><p>{mode === 'create' ? 'Выберите до 9 человек — вы станете десятым участником.' : `Свободно мест: ${limit}`}</p></div><button type="button" className="dialog-close" aria-label="Закрыть" onClick={onClose}>×</button></div>
+      <div className="group-dialog-header"><div><h2>{mode === 'create' ? 'Новый общий чат' : 'Добавить участников'}</h2><p>{mode === 'create' ? 'Выберите до 9 человек — вы станете десятым участником.' : `Свободно мест: ${limit}`}</p></div><button type="button" className="dialog-close" aria-label="Закрыть" onClick={onClose}>×</button></div>
       {mode === 'create' && <label className="field">Название группы<input autoFocus value={title} onChange={(event) => setTitle(event.target.value)} maxLength={80} placeholder="Например, Разговор по душам" /></label>}
       <div className="group-selection-label">Выбрано: {selectedIds.length} из {limit}</div>
       <div className="group-members">{candidates.length ? candidates.map((person) => {
@@ -157,7 +157,7 @@ function GroupDialog({ mode, recommendations, selected, onClose, onCreate, onAdd
         return <label key={person.id} className={checked ? 'group-member selected' : 'group-member'}><input type="checkbox" checked={checked} disabled={disabled} onChange={() => toggle(person.id)} /><span>{person.displayName}</span><small>{person.profile?.interests.slice(0, 2).join(' · ') || 'Участник сообщества'}</small></label>;
       }) : <p className="group-empty">Сейчас нет доступных людей для добавления.</p>}</div>
       {error && <p className="group-error">{error}</p>}
-      <div className="group-dialog-actions"><button type="button" className="secondary" onClick={onClose}>Отмена</button><button className="primary" disabled={!canSubmit || saving}>{saving ? 'Сохраняем…' : mode === 'create' ? 'Создать группу' : 'Добавить'}</button></div>
+      <div className="group-dialog-actions"><button type="button" className="secondary" onClick={onClose}>Отмена</button><button className="primary" disabled={!canSubmit || saving}>{saving ? 'Сохраняем…' : mode === 'create' ? 'Создать чат' : 'Добавить'}</button></div>
     </form>
   </div>;
 }

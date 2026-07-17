@@ -36,6 +36,13 @@ export class ModerationController {
     return this.moderationService.listUsers();
   }
 
+  @Get('statistics')
+  @Roles(UserRole.MODERATOR, UserRole.ADMIN)
+  @UseGuards(RolesGuard)
+  statistics() {
+    return this.moderationService.statistics();
+  }
+
   @Post(':reportId/resolve')
   @Roles(UserRole.MODERATOR, UserRole.ADMIN)
   @UseGuards(RolesGuard)
