@@ -35,6 +35,11 @@ export class MatchingController {
     return this.matchingService.block(user.sub, dto.userId);
   }
 
+  @Get('blocks')
+  blocks(@CurrentUser() user: AuthenticatedUser) {
+    return this.matchingService.listBlocks(user.sub);
+  }
+
   @Delete('blocks/:userId')
   unblock(@CurrentUser() user: AuthenticatedUser, @Param('userId') userId: string) {
     return this.matchingService.unblock(user.sub, userId);

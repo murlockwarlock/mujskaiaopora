@@ -97,6 +97,27 @@ export class MatchingService {
     });
   }
 
+  async listBlocks(userId: string) {
+    const blocks = await this.prisma.block.findMany({
+      where: { creatorId: userId },
+      include: {
+        target: {
+          select: {
+            id: true,
+            displayName: true,
+            profile: { select: { avatarKey: true } }
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+    return blocks.map((block) => ({
+      id: block.target.id,
+      displayName: block.target.displayName,
+      avatarUrl: this.storage.getPublicUrl(block.target.profile?.avatarKey ?? null)
+    }));
+  }
+
   async unblock(userId: string, targetId: string) {
     await this.prisma.block.deleteMany({ where: { creatorId: userId, targetId } });
     return { ok: true };

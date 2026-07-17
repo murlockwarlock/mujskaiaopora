@@ -28,4 +28,23 @@ describe('MatchingService', () => {
     const service = new MatchingService({} as never, {} as never);
     await expect(service.block('user', 'user')).rejects.toBeInstanceOf(BadRequestException);
   });
+
+  it('returns only blocks created by the current user', async () => {
+    const prisma = {
+      block: {
+        findMany: jest.fn().mockResolvedValue([{
+          target: { id: 'blocked', displayName: 'Алексей', profile: { avatarKey: 'avatars/alexey.jpg' } }
+        }])
+      }
+    };
+    const storage = { getPublicUrl: jest.fn().mockReturnValue('https://cdn.example/alexey.jpg') };
+    const service = new MatchingService(prisma as never, storage as never);
+
+    await expect(service.listBlocks('current')).resolves.toEqual([{
+      id: 'blocked',
+      displayName: 'Алексей',
+      avatarUrl: 'https://cdn.example/alexey.jpg'
+    }]);
+    expect(prisma.block.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { creatorId: 'current' } }));
+  });
 });

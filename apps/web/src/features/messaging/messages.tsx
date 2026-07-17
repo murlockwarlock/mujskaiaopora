@@ -31,6 +31,8 @@ export function Messages(props: MessagesProps) {
   const [text, setText] = useState('');
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [groupDialog, setGroupDialog] = useState<GroupDialogMode>(null);
+  const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState('');
 
   useEffect(() => {
     const token = api.getAccessToken();
@@ -49,14 +51,22 @@ export function Messages(props: MessagesProps) {
 
   async function send(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
-    if (!selected || !text.trim()) return;
-    const message = await api.request<Message>(`conversations/${selected.id}/messages`, {
-      method: 'POST',
-      body: JSON.stringify({ clientMessageId: crypto.randomUUID(), body: text })
-    });
-    props.onMessages((current) => (current.some((item) => item.id === message.id) ? current : [...current, message]));
-    props.onConversationMessage(selected.id, message);
-    setText('');
+    if (!selected || !text.trim() || sending) return;
+    setSending(true);
+    setSendError('');
+    try {
+      const message = await api.request<Message>(`conversations/${selected.id}/messages`, {
+        method: 'POST',
+        body: JSON.stringify({ clientMessageId: crypto.randomUUID(), body: text })
+      });
+      props.onMessages((current) => (current.some((item) => item.id === message.id) ? current : [...current, message]));
+      props.onConversationMessage(selected.id, message);
+      setText('');
+    } catch (cause) {
+      setSendError(cause instanceof Error ? cause.message : 'Не удалось отправить сообщение');
+    } finally {
+      setSending(false);
+    }
   }
 
   function addEmoji(emoji: string): void {
@@ -89,9 +99,10 @@ export function Messages(props: MessagesProps) {
         })}</div>
         <form className="composer" onSubmit={(event) => void send(event)}>
           {emojiOpen && <div className="emoji-picker">{['🙂', '👍', '❤️', '🙏', '💪', '😊', '😔', '🔥', '👏', '🤝', '😂', '🎉'].map((emoji) => <button type="button" key={emoji} onClick={() => addEmoji(emoji)}>{emoji}</button>)}</div>}
-          <button type="button" className="emoji-button" aria-label="Выбрать эмодзи" onClick={() => setEmojiOpen((open) => !open)}>☺</button>
           <input value={text} onChange={(event) => setText(event.target.value)} placeholder="Напишите сообщение…" maxLength={4000} />
-          <button className="primary">Отправить</button>
+          <button type="button" className="emoji-button" aria-label="Выбрать эмодзи" onClick={() => setEmojiOpen((open) => !open)}>☺</button>
+          <button className="primary" disabled={!text.trim() || sending}>{sending ? 'Отправляем…' : 'Отправить'}</button>
+          {sendError && <span className="composer-error">{sendError}</span>}
         </form>
       </> : <div className="empty">Выберите диалог, чтобы начать общение</div>}
     </div>

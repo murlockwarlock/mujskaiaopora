@@ -1,16 +1,23 @@
 'use client';
 
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { Avatar } from '@/components/avatar';
 import { FormField } from '@/components/form-field';
 import { Profile } from '@/features/app/types';
 import { api } from '@/lib/api';
+
+type BlockedUser = { id: string; displayName: string; avatarUrl: string | null };
 
 export function ProfileEditor({ profile, onProfile, onNotice }: { profile: Profile; onProfile: (profile: Profile) => void; onNotice: (value: string) => void }) {
   const [bio, setBio] = useState(profile.bio);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [feedback, setFeedback] = useState('');
+  const [blockedUsers, setBlockedUsers] = useState<BlockedUser[]>([]);
+
+  useEffect(() => {
+    void api.request<BlockedUser[]>('matching/blocks').then(setBlockedUsers).catch(() => undefined);
+  }, []);
 
   async function save(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
@@ -49,7 +56,17 @@ export function ProfileEditor({ profile, onProfile, onNotice }: { profile: Profi
     }
   }
 
-  return <section className="profile-editor"><div className="profile-heading"><Avatar url={profile.avatarUrl} name={profile.user?.displayName ?? 'Профиль'} /><label className="avatar-action">{uploading ? 'Загружаем фото…' : 'Изменить фото'}<input type="file" accept="image/jpeg,image/png,image/webp" disabled={uploading} onChange={(event) => event.target.files?.[0] && void uploadAvatar(event.target.files[0])} /></label></div><form onSubmit={(event) => void save(event)}><FormField label="Город" name="city" defaultValue={profile.city ?? ''} /><FormField label="Часовой пояс" name="timeZone" defaultValue={profile.timeZone} /><label className="field bio-field">О себе<textarea name="bio" value={bio} onChange={(event) => setBio(event.target.value)} maxLength={1400} placeholder="Расскажите о себе, своих темах и о том, кого хотите найти" /><span>{bio.length}/1400</span></label><FormField label="Языки через запятую" name="languages" defaultValue={profile.languages.join(', ')} /><FormField label="Темы через запятую" name="interests" defaultValue={profile.interests.join(', ')} /><div className="notification-settings"><label><input type="checkbox" name="messageSoundEnabled" defaultChecked={profile.messageSoundEnabled} /> Звук новых сообщений</label><label><input type="checkbox" name="callSoundEnabled" defaultChecked={profile.callSoundEnabled} /> Звук входящего звонка</label><label><input type="checkbox" name="browserNotificationsEnabled" defaultChecked={profile.browserNotificationsEnabled} /> Системные уведомления браузера</label></div><div className="profile-save"><button className="primary" disabled={saving}>{saving ? 'Сохраняем…' : 'Сохранить изменения'}</button>{feedback && <span className={feedback === 'Изменения сохранены' ? 'profile-success' : 'profile-error'}>{feedback}</span>}</div></form></section>;
+  async function unblock(user: BlockedUser): Promise<void> {
+    try {
+      await api.request(`matching/blocks/${user.id}`, { method: 'DELETE' });
+      setBlockedUsers((current) => current.filter((item) => item.id !== user.id));
+      onNotice(`${user.displayName} разблокирован`);
+    } catch (cause) {
+      setFeedback(cause instanceof Error ? cause.message : 'Не удалось разблокировать пользователя');
+    }
+  }
+
+  return <section className="profile-editor"><div className="profile-heading"><Avatar url={profile.avatarUrl} name={profile.user?.displayName ?? 'Профиль'} /><label className="avatar-action">{uploading ? 'Загружаем фото…' : 'Изменить фото'}<input type="file" accept="image/jpeg,image/png,image/webp" disabled={uploading} onChange={(event) => event.target.files?.[0] && void uploadAvatar(event.target.files[0])} /></label></div><form onSubmit={(event) => void save(event)}><FormField label="Город" name="city" defaultValue={profile.city ?? ''} /><FormField label="Часовой пояс" name="timeZone" defaultValue={profile.timeZone} /><label className="field bio-field">О себе<textarea name="bio" value={bio} onChange={(event) => setBio(event.target.value)} maxLength={1400} placeholder="Расскажите о себе, своих темах и о том, кого хотите найти" /><span>{bio.length}/1400</span></label><FormField label="Языки через запятую" name="languages" defaultValue={profile.languages.join(', ')} /><FormField label="Темы через запятую" name="interests" defaultValue={profile.interests.join(', ')} /><div className="notification-settings"><label><input type="checkbox" name="messageSoundEnabled" defaultChecked={profile.messageSoundEnabled} /> Звук новых сообщений</label><label><input type="checkbox" name="callSoundEnabled" defaultChecked={profile.callSoundEnabled} /> Звук входящего звонка</label><label><input type="checkbox" name="browserNotificationsEnabled" defaultChecked={profile.browserNotificationsEnabled} /> Системные уведомления браузера</label></div><div className="profile-save"><button className="primary" disabled={saving}>{saving ? 'Сохраняем…' : 'Сохранить изменения'}</button>{feedback && <span className={feedback === 'Изменения сохранены' ? 'profile-success' : 'profile-error'}>{feedback}</span>}</div></form><section className="blocked-users"><div><h3>Заблокированные</h3><p>Здесь можно отменить только блокировки, которые поставили вы.</p></div>{blockedUsers.length ? <div>{blockedUsers.map((user) => <article key={user.id}><Avatar url={user.avatarUrl} name={user.displayName} /><strong>{user.displayName}</strong><button type="button" className="secondary" onClick={() => void unblock(user)}>Разблокировать</button></article>)}</div> : <p className="admin-empty">Нет заблокированных пользователей.</p>}</section></section>;
 }
 
 function uploadFile(url: string, file: File): Promise<void> {
