@@ -1,6 +1,6 @@
 'use client';
 
-import { Dispatch, FormEvent, Fragment, SetStateAction, useEffect, useMemo, useState } from 'react';
+import { Dispatch, FormEvent, Fragment, SetStateAction, useEffect, useMemo, useRef, useState } from 'react';
 import { io } from 'socket.io-client';
 import { Conversation, Message, Recommendation } from '@/features/app/types';
 import { api } from '@/lib/api';
@@ -33,6 +33,11 @@ export function Messages(props: MessagesProps) {
   const [groupDialog, setGroupDialog] = useState<GroupDialogMode>(null);
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState('');
+  const messageStream = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    messageStream.current?.scrollTo({ top: messageStream.current.scrollHeight, behavior: 'smooth' });
+  }, [selected?.id, messages.length]);
 
   useEffect(() => {
     const token = api.getAccessToken();
@@ -92,7 +97,7 @@ export function Messages(props: MessagesProps) {
             <button type="button" className="icon-button" aria-label="Видеозвонок" title="Видеозвонок" onClick={() => void props.onStartCall(selected.id, 'VIDEO')}><VideoIcon /></button>
           </div>
         </header>
-        <div className="message-stream">{messages.map((message, index) => {
+        <div className="message-stream" ref={messageStream}>{messages.map((message, index) => {
           const date = formatMessageDate(message.createdAt, timeZone);
           const previousDate = index ? formatMessageDate(messages[index - 1].createdAt, timeZone) : null;
           return <Fragment key={message.id}>{date !== previousDate && <div className="message-date">{date}</div>}<div className={message.sender.id === currentUserId ? 'message mine' : 'message'}><b>{message.sender.displayName}</b><p>{message.body}</p><small>{formatMessageTime(message.createdAt, timeZone)}</small></div></Fragment>;
