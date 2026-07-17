@@ -82,8 +82,20 @@ export class AuthService {
     if (!session || session.revokedAt || session.expiresAt <= new Date() || session.user.status !== 'ACTIVE') {
       throw new UnauthorizedException('Сессия недействительна');
     }
-    await this.prisma.userSession.update({ where: { id: session.id }, data: { revokedAt: new Date() } });
-    return this.createSession(session.user, metadata);
+    await this.prisma.userSession.update({
+      where: { id: session.id },
+      data: {
+        expiresAt: new Date(Date.now() + this.refreshSessionTtlMilliseconds),
+        userAgent: metadata.userAgent?.slice(0, 500),
+        ipAddress: metadata.ipAddress?.slice(0, 64)
+      }
+    });
+    const accessToken = await this.jwt.signAsync({ sub: session.user.id, email: session.user.email, role: session.user.role });
+    return {
+      accessToken,
+      refreshToken,
+      user: { id: session.user.id, email: session.user.email, displayName: session.user.displayName, role: session.user.role }
+    };
   }
 
   async revokeSession(refreshToken: string): Promise<void> {

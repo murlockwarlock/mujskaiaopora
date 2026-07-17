@@ -4,7 +4,7 @@ import { AuthenticatedUser } from '../auth/auth.types';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CallsService } from './calls.service';
-import { CreateCallRoomDto } from './dto/calls.dto';
+import { CreateCallRoomDto, StartConversationCallDto } from './dto/calls.dto';
 
 @ApiTags('calls')
 @ApiBearerAuth()
@@ -15,12 +15,12 @@ export class CallsController {
 
   @Post('rooms')
   createRoom(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreateCallRoomDto) {
-    return this.callsService.createRoom(user.sub, dto);
+    return this.callsService.createRoomWithConnection(user.sub, dto);
   }
 
   @Post('conversations/:conversationId/start')
-  startConversationCall(@CurrentUser() user: AuthenticatedUser, @Param('conversationId') conversationId: string) {
-    return this.callsService.startConversationCall(user.sub, conversationId);
+  startConversationCall(@CurrentUser() user: AuthenticatedUser, @Param('conversationId') conversationId: string, @Body() dto: StartConversationCallDto) {
+    return this.callsService.startConversationCall(user.sub, conversationId, dto.mode);
   }
 
   @Post('rooms/:roomId/join')

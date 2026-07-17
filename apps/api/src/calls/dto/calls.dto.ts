@@ -1,4 +1,4 @@
-import { IsDateString, IsOptional, IsString, IsUUID, Length, Min } from 'class-validator';
+import { IsDateString, IsIn, IsOptional, IsString, IsUUID, Length, Min } from 'class-validator';
 
 export class CreateCallRoomDto {
   @IsString()
@@ -16,4 +16,9 @@ export class CreateCallRoomDto {
   @IsOptional()
   @IsDateString()
   startsAt?: string;
+}
+
+export class StartConversationCallDto {
+  @IsIn(['AUDIO', 'VIDEO'])
+  mode!: 'AUDIO' | 'VIDEO';
 }

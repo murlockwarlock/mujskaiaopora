@@ -1,4 +1,5 @@
 export type ConversationMember = {
+  role?: 'OWNER' | 'MEMBER';
   user?: {
     id: string;
     displayName: string;

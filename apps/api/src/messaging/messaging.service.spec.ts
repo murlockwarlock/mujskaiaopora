@@ -17,8 +17,11 @@ describe('MessagingService', () => {
       block: { findFirst: jest.fn().mockResolvedValue(null) },
       conversation: {
         findMany: jest.fn().mockResolvedValue([]),
-        create: jest.fn().mockResolvedValue(summary)
-      }
+        create: jest.fn().mockResolvedValue(summary),
+        findUniqueOrThrow: jest.fn().mockResolvedValue({ type: 'GROUP', members: [{ userId: 'current', role: 'OWNER' }] }),
+        update: jest.fn()
+      },
+      conversationMember: { createMany: jest.fn() }
     };
     const config = { getOrThrow: jest.fn().mockReturnValue('10') };
     return { prisma, service: new MessagingService(prisma as never, {} as never, config as never) };
@@ -44,5 +47,15 @@ describe('MessagingService', () => {
 
     await expect(service.createGroupConversation('current', { title: 'Разговор', userIds: ['other'] })).resolves.toEqual(summary);
     expectSummaryInclude(prisma.conversation.create);
+  });
+
+  it('adds only new members when the requester owns the group', async () => {
+    const { prisma, service } = createService();
+    prisma.conversation.findUniqueOrThrow
+      .mockResolvedValueOnce({ type: 'GROUP', members: [{ userId: 'current', role: 'OWNER' }] })
+      .mockResolvedValueOnce(summary);
+
+    await expect(service.addGroupMembers('current', 'conversation', { userIds: ['other'] })).resolves.toEqual(summary);
+    expect(prisma.conversationMember.createMany).toHaveBeenCalledWith({ data: [{ conversationId: 'conversation', userId: 'other', role: 'MEMBER' }] });
   });
 });

@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { ConversationType, MembershipRole, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
-import { CreateGroupConversationDto, CreateMessageDto } from './dto/conversation.dto';
+import { AddConversationMembersDto, CreateGroupConversationDto, CreateMessageDto } from './dto/conversation.dto';
 
 @Injectable()
 export class MessagingService {
@@ -77,6 +77,28 @@ export class MessagingService {
       },
       include: this.conversationSummary
     });
+  }
+
+  async addGroupMembers(userId: string, conversationId: string, dto: AddConversationMembersDto) {
+    const conversation = await this.prisma.conversation.findUniqueOrThrow({
+      where: { id: conversationId },
+      include: { members: true }
+    });
+    if (conversation.type !== ConversationType.GROUP) throw new ForbiddenException('Участников можно добавлять только в группы');
+    const membership = conversation.members.find((member) => member.userId === userId);
+    if (membership?.role !== MembershipRole.OWNER) throw new ForbiddenException('Добавлять участников может только создатель группы');
+
+    const currentMemberIds = new Set(conversation.members.map((member) => member.userId));
+    const memberIds = [...new Set(dto.userIds)].filter((id) => !currentMemberIds.has(id));
+    if (!memberIds.length) return this.getConversationSummary(conversationId);
+    const limit = Number(this.config.getOrThrow<string>('MAX_GROUP_PARTICIPANTS'));
+    if (conversation.members.length + memberIds.length > limit) throw new ForbiddenException('В группе нет свободных мест');
+    await Promise.all(memberIds.map((id) => this.ensureAvailableUser(id)));
+    await this.prisma.conversationMember.createMany({
+      data: memberIds.map((memberId) => ({ conversationId, userId: memberId, role: MembershipRole.MEMBER }))
+    });
+    await this.prisma.conversation.update({ where: { id: conversationId }, data: { updatedAt: new Date() } });
+    return this.getConversationSummary(conversationId);
   }
 
   async listMessages(userId: string, conversationId: string, cursor?: string) {

@@ -35,14 +35,20 @@ export class CallsService {
     return room;
   }
 
-  async startConversationCall(userId: string, conversationId: string) {
+  async startConversationCall(userId: string, conversationId: string, mode: 'AUDIO' | 'VIDEO') {
     const room = await this.createRoom(userId, {
-      title: 'Видеовстреча',
+      title: mode === 'AUDIO' ? 'Аудиозвонок' : 'Видеозвонок',
       conversationId,
       maxParticipants: Number(this.config.getOrThrow<string>('MAX_CALL_PARTICIPANTS'))
     });
     const connection = await this.joinRoom(userId, room.id);
     return { roomId: room.id, ...connection };
+  }
+
+  async createRoomWithConnection(userId: string, dto: CreateCallRoomDto) {
+    const room = await this.createRoom(userId, dto);
+    const connection = await this.joinRoom(userId, room.id);
+    return { ...room, ...connection };
   }
 
   async joinRoom(userId: string, roomId: string) {

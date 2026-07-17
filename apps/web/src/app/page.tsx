@@ -25,10 +25,27 @@ export default function Page() {
   }, []);
 
   async function restore(): Promise<void> {
-    if (!(await api.refresh())) {
+    if (!api.getAccessToken() && !(await api.refresh())) {
       setLoading(false);
       return;
     }
+    try {
+      await loadAccount();
+    } catch {
+      api.clearAccessToken();
+      if (await api.refresh()) {
+        try {
+          await loadAccount();
+          return;
+        } catch {
+          api.clearAccessToken();
+        }
+      }
+      setLoading(false);
+    }
+  }
+
+  async function loadAccount(): Promise<void> {
     const [user, nextProfile, nextRecommendations, nextConversations] = await Promise.all([
       api.request<Profile['user'] & { email: string; role: string }>('auth/me'),
       api.request<Profile>('profile'),
@@ -69,6 +86,18 @@ export default function Page() {
     await openConversation(conversation);
   }
 
+  async function createGroup(title: string, userIds: string[]): Promise<void> {
+    const conversation = await api.request<Conversation>('conversations/group', { method: 'POST', body: JSON.stringify({ title, userIds }) });
+    setConversations((current) => [conversation, ...current]);
+    await openConversation(conversation);
+  }
+
+  async function addGroupMembers(conversationId: string, userIds: string[]): Promise<void> {
+    const conversation = await api.request<Conversation>(`conversations/${conversationId}/members`, { method: 'POST', body: JSON.stringify({ userIds }) });
+    setConversations((current) => current.map((item) => item.id === conversation.id ? conversation : item));
+    if (selectedConversation?.id === conversation.id) setSelectedConversation(conversation);
+  }
+
   async function dismissRecommendation(userId: string): Promise<void> {
     await api.request('matching/dismissals', { method: 'POST', body: JSON.stringify({ userId }) });
     setRecommendations((current) => current.filter((item) => item.id !== userId));
@@ -92,5 +121,5 @@ export default function Page() {
   if (loading) return <main className="loading">Загружаем пространство…</main>;
   if (!session) return <AuthScreen onAuthenticated={completeAuthentication} />;
 
-  return <Dashboard session={session} profile={profile} recommendations={recommendations} conversations={conversations} selectedConversation={selectedConversation} messages={messages} view={view} notice={notice} onView={setView} onProfile={setProfile} onNotice={setNotice} onStartConversation={startConversation} onDismissRecommendation={dismissRecommendation} onBlockUser={blockUser} onOpenConversation={openConversation} onMessages={setMessages} onLogout={async () => { await api.logout(); setSession(null); setProfile(null); }} />;
+  return <Dashboard session={session} profile={profile} recommendations={recommendations} conversations={conversations} selectedConversation={selectedConversation} messages={messages} view={view} notice={notice} onView={setView} onProfile={setProfile} onNotice={setNotice} onStartConversation={startConversation} onDismissRecommendation={dismissRecommendation} onBlockUser={blockUser} onOpenConversation={openConversation} onCreateGroup={createGroup} onAddGroupMembers={addGroupMembers} onMessages={setMessages} onLogout={async () => { await api.logout(); setSession(null); setProfile(null); }} />;
 }

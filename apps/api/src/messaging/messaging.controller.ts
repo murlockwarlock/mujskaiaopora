@@ -3,7 +3,7 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { AuthenticatedUser } from '../auth/auth.types';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { CreateDirectConversationDto, CreateGroupConversationDto, CreateMessageDto, MessageCursorDto } from './dto/conversation.dto';
+import { AddConversationMembersDto, CreateDirectConversationDto, CreateGroupConversationDto, CreateMessageDto, MessageCursorDto } from './dto/conversation.dto';
 import { MessagingService } from './messaging.service';
 
 @ApiTags('messaging')
@@ -26,6 +26,11 @@ export class MessagingController {
   @Post('group')
   createGroup(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreateGroupConversationDto) {
     return this.messagingService.createGroupConversation(user.sub, dto);
+  }
+
+  @Post(':conversationId/members')
+  addMembers(@CurrentUser() user: AuthenticatedUser, @Param('conversationId') conversationId: string, @Body() dto: AddConversationMembersDto) {
+    return this.messagingService.addGroupMembers(user.sub, conversationId, dto);
   }
 
   @Get(':conversationId/messages')
