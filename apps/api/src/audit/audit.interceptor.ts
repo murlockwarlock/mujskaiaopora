@@ -1,14 +1,20 @@
 import { CallHandler, ExecutionContext, Injectable, NestInterceptor } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import { Observable, tap } from 'rxjs';
 import { AuthenticatedUser } from '../auth/auth.types';
 import { AuditService } from './audit.service';
+import { SKIP_AUDIT_KEY } from './skip-audit.decorator';
 
 @Injectable()
 export class AuditInterceptor implements NestInterceptor {
-  constructor(private readonly auditService: AuditService) {}
+  constructor(
+    private readonly auditService: AuditService,
+    private readonly reflector: Reflector
+  ) {}
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     if (context.getType() !== 'http') return next.handle();
+    if (this.reflector.getAllAndOverride<boolean>(SKIP_AUDIT_KEY, [context.getHandler(), context.getClass()])) return next.handle();
     const request = context.switchToHttp().getRequest();
     const response = context.switchToHttp().getResponse();
     const user = request.user as AuthenticatedUser | undefined;

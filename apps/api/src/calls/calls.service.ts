@@ -119,7 +119,8 @@ export class CallsService {
     const candidates = [...new Set(userIds)].filter((id) => id !== userId && !invitedIds.has(id));
     if (!candidates.length) return { invited: 0 };
     const activeParticipants = await this.prisma.callParticipant.count({ where: { callRoomId: roomId, leftAt: null } });
-    if (activeParticipants + currentInvitations.length + candidates.length > room.maxParticipants) throw new ForbiddenException('В комнате нет свободных мест');
+    const pendingInvitations = await this.prisma.callInvitation.count({ where: { callRoomId: roomId, status: CallInvitationStatus.PENDING } });
+    if (activeParticipants + pendingInvitations + candidates.length > room.maxParticipants) throw new ForbiddenException('В комнате нет свободных мест');
     await Promise.all(candidates.map((id) => this.ensureAvailableUser(id)));
     await this.prisma.callInvitation.createMany({ data: candidates.map((invitee) => ({ callRoomId: roomId, userId: invitee })) });
     const caller = await this.getCaller(userId);
@@ -160,8 +161,8 @@ export class CallsService {
   }
 
   async leaveRoom(userId: string, roomId: string) {
-    await this.prisma.callParticipant.update({
-      where: { callRoomId_userId: { callRoomId: roomId, userId } },
+    await this.prisma.callParticipant.updateMany({
+      where: { callRoomId: roomId, userId },
       data: { leftAt: new Date() }
     });
     return { ok: true };

@@ -50,4 +50,32 @@ describe('CallsService', () => {
       caller: { id: 'caller', displayName: 'Иван', avatarUrl: null }
     }]);
   });
+
+  it('does not count declined invitations against the room limit', async () => {
+    const prisma = {
+      callRoom: { findUniqueOrThrow: jest.fn().mockResolvedValue({ id: 'room', createdById: 'owner', status: 'LIVE', maxParticipants: 10 }) },
+      callInvitation: {
+        findMany: jest.fn().mockResolvedValue([{ userId: 'declined' }]),
+        count: jest.fn().mockResolvedValue(0),
+        createMany: jest.fn()
+      },
+      callParticipant: { count: jest.fn().mockResolvedValue(1) },
+      user: {
+        findUnique: jest.fn().mockResolvedValue({ status: 'ACTIVE' }),
+        findUniqueOrThrow: jest.fn().mockResolvedValue({ id: 'owner', displayName: 'Иван', profile: { avatarKey: null } })
+      }
+    };
+    const service = new CallsService(prisma as never, {} as never, { emitUser: jest.fn() } as never, { getPublicUrl: jest.fn().mockReturnValue(null) } as never);
+
+    await expect(service.inviteUsers('owner', 'room', ['guest'])).resolves.toEqual({ invited: 1 });
+    expect(prisma.callInvitation.count).toHaveBeenCalledWith({ where: { callRoomId: 'room', status: 'PENDING' } });
+  });
+
+  it('allows a repeated leave request without failing the call screen', async () => {
+    const prisma = { callParticipant: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) } };
+    const service = new CallsService(prisma as never, {} as never, {} as never, {} as never);
+
+    await expect(service.leaveRoom('user', 'room')).resolves.toEqual({ ok: true });
+    expect(prisma.callParticipant.updateMany).toHaveBeenCalledWith(expect.objectContaining({ where: { callRoomId: 'room', userId: 'user' } }));
+  });
 });

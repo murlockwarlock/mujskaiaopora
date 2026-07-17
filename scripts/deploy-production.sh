@@ -30,5 +30,7 @@ fi
 docker compose -f "$compose_file" build api
 docker compose -f "$compose_file" up -d --no-build
 test "$(cat REVISION)" = "$revision"
+curl --fail --silent --show-error http://127.0.0.1:4000/v1/health >/dev/null
+curl --fail --silent --show-error http://127.0.0.1:3000/health >/dev/null
 docker compose -f "$compose_file" ps
 REMOTE
