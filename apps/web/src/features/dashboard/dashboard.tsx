@@ -181,7 +181,7 @@ export function Dashboard(props: DashboardProps) {
       </nav>
       <button className="logout" onClick={() => void props.onLogout()}>Выйти</button>
     </aside>
-    <main className="workspace">
+    <main className={view === 'messages' ? 'workspace workspace-messages' : 'workspace'}>
       <header className="topbar">
         <div><h1>Привет, {displayName}</h1>{unreadTotal > 0 && <button className="topbar-unread" onClick={() => props.onView('messages')}>Новых сообщений: {unreadTotal > 99 ? '99+' : unreadTotal}</button>}</div>
         <button className="profile-shortcut" aria-label="Открыть профиль" title="Профиль" onClick={() => props.onView('profile')}><Avatar url={profile?.avatarUrl} name={displayName} /></button>
