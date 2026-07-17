@@ -8,6 +8,7 @@
     "start": "node dist/main.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
+    "seed:test-profiles": "node scripts/seed-test-profiles.cjs",
     "lint": "eslint \"src/**/*.ts\"",
     "test": "jest --config jest.config.cjs"
   },

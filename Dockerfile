@@ -33,6 +33,7 @@ COPY --from=build /app/apps/web/package.json apps/web/package.json
 
 COPY --from=build /app/apps/api/dist apps/api/dist
 COPY --from=build /app/apps/api/prisma apps/api/prisma
+COPY --from=build /app/apps/api/scripts apps/api/scripts
 COPY --from=build /app/apps/web apps/web
 
 ENV NODE_ENV=production
