@@ -29,11 +29,18 @@ export class ModerationController {
     return this.moderationService.listOpenReports();
   }
 
+  @Get('users')
+  @Roles(UserRole.MODERATOR, UserRole.ADMIN)
+  @UseGuards(RolesGuard)
+  listUsers() {
+    return this.moderationService.listUsers();
+  }
+
   @Post(':reportId/resolve')
   @Roles(UserRole.MODERATOR, UserRole.ADMIN)
   @UseGuards(RolesGuard)
-  resolve(@Param('reportId') reportId: string, @Body() dto: ResolveReportDto) {
-    return this.moderationService.resolveReport(reportId, dto);
+  resolve(@CurrentUser() user: AuthenticatedUser, @Param('reportId') reportId: string, @Body() dto: ResolveReportDto) {
+    return this.moderationService.resolveReport(user.sub, reportId, dto);
   }
 
   @Post('users/:userId/suspend')

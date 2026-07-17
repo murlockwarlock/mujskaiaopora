@@ -9,6 +9,7 @@ import { api } from '@/lib/api';
 export function ProfileEditor({ profile, onProfile, onNotice }: { profile: Profile; onProfile: (profile: Profile) => void; onNotice: (value: string) => void }) {
   const [bio, setBio] = useState(profile.bio);
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [feedback, setFeedback] = useState('');
 
   async function save(event: FormEvent<HTMLFormElement>): Promise<void> {
@@ -33,12 +34,31 @@ export function ProfileEditor({ profile, onProfile, onNotice }: { profile: Profi
   }
 
   async function uploadAvatar(file: File): Promise<void> {
-    const upload = await api.request<{ uploadId: string; uploadUrl: string }>('profile/avatar/uploads', { method: 'POST', body: JSON.stringify({ contentType: file.type, byteSize: file.size }) });
-    await fetch(upload.uploadUrl, { method: 'PUT', headers: { 'Content-Type': file.type }, body: file });
-    const next = await api.request<Profile>('profile/avatar/confirm', { method: 'POST', body: JSON.stringify({ uploadId: upload.uploadId }) });
-    onProfile(next);
-    onNotice('Аватар обновлён');
+    if (uploading) return;
+    setUploading(true);
+    try {
+      const upload = await api.request<{ uploadId: string; uploadUrl: string }>('profile/avatar/uploads', { method: 'POST', body: JSON.stringify({ contentType: file.type, byteSize: file.size }) });
+      await uploadFile(upload.uploadUrl, file);
+      const next = await api.request<Profile>('profile/avatar/confirm', { method: 'POST', body: JSON.stringify({ uploadId: upload.uploadId }) });
+      onProfile(next);
+      onNotice('Аватар обновлён');
+    } catch (cause) {
+      onNotice(cause instanceof Error ? cause.message : 'Не удалось загрузить аватар');
+    } finally {
+      setUploading(false);
+    }
   }
 
-  return <section className="profile-editor"><div className="profile-heading"><Avatar url={profile.avatarUrl} name={profile.user?.displayName ?? 'Профиль'} /><label className="avatar-action">Изменить фото<input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => event.target.files?.[0] && void uploadAvatar(event.target.files[0])} /></label></div><form onSubmit={(event) => void save(event)}><FormField label="Город" name="city" defaultValue={profile.city ?? ''} /><FormField label="Часовой пояс" name="timeZone" defaultValue={profile.timeZone} /><label className="field bio-field">О себе<textarea name="bio" value={bio} onChange={(event) => setBio(event.target.value)} maxLength={1400} placeholder="Расскажите о себе, своих темах и о том, кого хотите найти" /><span>{bio.length}/1400</span></label><FormField label="Языки через запятую" name="languages" defaultValue={profile.languages.join(', ')} /><FormField label="Темы через запятую" name="interests" defaultValue={profile.interests.join(', ')} /><div className="notification-settings"><label><input type="checkbox" name="messageSoundEnabled" defaultChecked={profile.messageSoundEnabled} /> Звук новых сообщений</label><label><input type="checkbox" name="callSoundEnabled" defaultChecked={profile.callSoundEnabled} /> Звук входящего звонка</label><label><input type="checkbox" name="browserNotificationsEnabled" defaultChecked={profile.browserNotificationsEnabled} /> Системные уведомления браузера</label></div><div className="profile-save"><button className="primary" disabled={saving}>{saving ? 'Сохраняем…' : 'Сохранить изменения'}</button>{feedback && <span className={feedback === 'Изменения сохранены' ? 'profile-success' : 'profile-error'}>{feedback}</span>}</div></form></section>;
+  return <section className="profile-editor"><div className="profile-heading"><Avatar url={profile.avatarUrl} name={profile.user?.displayName ?? 'Профиль'} /><label className="avatar-action">{uploading ? 'Загружаем фото…' : 'Изменить фото'}<input type="file" accept="image/jpeg,image/png,image/webp" disabled={uploading} onChange={(event) => event.target.files?.[0] && void uploadAvatar(event.target.files[0])} /></label></div><form onSubmit={(event) => void save(event)}><FormField label="Город" name="city" defaultValue={profile.city ?? ''} /><FormField label="Часовой пояс" name="timeZone" defaultValue={profile.timeZone} /><label className="field bio-field">О себе<textarea name="bio" value={bio} onChange={(event) => setBio(event.target.value)} maxLength={1400} placeholder="Расскажите о себе, своих темах и о том, кого хотите найти" /><span>{bio.length}/1400</span></label><FormField label="Языки через запятую" name="languages" defaultValue={profile.languages.join(', ')} /><FormField label="Темы через запятую" name="interests" defaultValue={profile.interests.join(', ')} /><div className="notification-settings"><label><input type="checkbox" name="messageSoundEnabled" defaultChecked={profile.messageSoundEnabled} /> Звук новых сообщений</label><label><input type="checkbox" name="callSoundEnabled" defaultChecked={profile.callSoundEnabled} /> Звук входящего звонка</label><label><input type="checkbox" name="browserNotificationsEnabled" defaultChecked={profile.browserNotificationsEnabled} /> Системные уведомления браузера</label></div><div className="profile-save"><button className="primary" disabled={saving}>{saving ? 'Сохраняем…' : 'Сохранить изменения'}</button>{feedback && <span className={feedback === 'Изменения сохранены' ? 'profile-success' : 'profile-error'}>{feedback}</span>}</div></form></section>;
+}
+
+function uploadFile(url: string, file: File): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const request = new XMLHttpRequest();
+    request.open('PUT', url);
+    request.setRequestHeader('Content-Type', file.type);
+    request.onload = () => request.status >= 200 && request.status < 300 ? resolve() : reject(new Error('Не удалось загрузить аватар'));
+    request.onerror = () => reject(new Error('Не удалось загрузить аватар'));
+    request.send(file);
+  });
 }

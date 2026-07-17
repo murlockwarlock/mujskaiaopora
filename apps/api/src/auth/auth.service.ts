@@ -1,6 +1,7 @@
 import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
+import { UserRole } from '@prisma/client';
 import * as argon2 from 'argon2';
 import { createHash, randomBytes } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
@@ -24,7 +25,7 @@ export class AuthService {
 
     const passwordHash = await argon2.hash(dto.password, { type: argon2.argon2id });
     const user = await this.prisma.user.create({
-      data: { email, passwordHash, displayName: dto.displayName.trim(), profile: { create: {} } }
+      data: { email, passwordHash, displayName: dto.displayName.trim(), role: this.isInitialAdmin(email) ? UserRole.ADMIN : UserRole.USER, profile: { create: {} } }
     });
 
     return this.createSession(user, metadata);
@@ -133,5 +134,9 @@ export class AuthService {
 
   private get refreshSessionTtlMilliseconds(): number {
     return Number(this.config.getOrThrow<string>('REFRESH_SESSION_TTL_SECONDS')) * 1000;
+  }
+
+  private isInitialAdmin(email: string): boolean {
+    return this.config.get<string>('INITIAL_ADMIN_EMAIL')?.trim().toLowerCase() === email;
   }
 }
