@@ -13,8 +13,8 @@ export function Home({ recommendations, onStartConversation, onDismiss, onBlock 
 
   return <div className="home-page">
     <section className="home-hero">
-      <div><p className="home-kicker">Сообщество</p><h2>Начните разговор с человеком, который вам близок.</h2><p>Анкеты подбираются по языкам и темам, которые вы указали в профиле.</p></div>
-      <div className="home-hero-status"><span>●</span><strong>Без спешки</strong><small>Вы сами решаете, кому написать</small></div>
+      <div><p className="home-kicker">Подборка</p><h2>Люди с похожими интересами — уже здесь.</h2><p>Смотрите анкеты, находите общие темы и начинайте диалог.</p></div>
+      <div className="home-hero-status"><span>✦</span><strong>Ваши совпадения</strong><small>По языкам и темам профиля</small></div>
     </section>
     <section className="recommendation-section">
       <header className="recommendation-heading"><div><p className="home-kicker">Рекомендация</p><h2>Вам может подойти</h2></div>{person && <span>{recommendations.length} анкет в подборке</span>}</header>
