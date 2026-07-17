@@ -49,6 +49,7 @@ services:
 
   api:
     image: mujskaiaopora-app:${APP_REVISION}
+    pull_policy: build
     build:
       context: ../..
       dockerfile: Dockerfile
