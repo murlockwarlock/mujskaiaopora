@@ -36,6 +36,16 @@ npm run build --workspace=@mujskaiaopora/api
 npm run build --workspace=@mujskaiaopora/web
 ```
 
+## Развёртывание
+
+На сервере должен быть клон репозитория в `/opt/mujskaiaopora/current` и файл `infra/production/.env`. Скрипт принимает SSH-хост и точный SHA уже отправленного коммита:
+
+```bash
+./scripts/deploy-production.sh root@server.example 0123456789abcdef
+```
+
+Для нестандартного пути или порта используйте `DEPLOY_PATH` и `DEPLOY_PORT`. Скрипт собирает один образ для API и web, запускает его и сохраняет ревизию в `REVISION`.
+
 ## Лицензия
 
 Проект распространяется по лицензии [MIT](LICENSE).
