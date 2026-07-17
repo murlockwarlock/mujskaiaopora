@@ -172,7 +172,7 @@ export function Calls({ onNotice, roomId, mode = 'VIDEO', connection, expanded, 
 
   useEffect(() => {
     const token = api.getAccessToken();
-    const endpoint = process.env.NEXT_PUBLIC_REALTIME_URL;
+    const endpoint = process.env.NEXT_PUBLIC_REALTIME_URL || window.location.origin;
     if (!activeRoomId || !room || !token || !endpoint) return;
     let cancelled = false;
     void api.request<CallMessage[]>(`calls/rooms/${activeRoomId}/messages`).then((items) => {

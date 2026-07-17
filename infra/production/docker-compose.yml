@@ -1,0 +1,83 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7.4-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+
+  minio:
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    command: server /data
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    volumes:
+      - minio_data:/data
+    ports:
+      - "127.0.0.1:9000:9000"
+
+  minio-init:
+    image: minio/mc:RELEASE.2025-05-21T22-12-26Z
+    depends_on:
+      - minio
+    entrypoint: >-
+      /bin/sh -c "until mc alias set local http://minio:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD}; do sleep 1; done; mc mb --ignore-existing local/${OBJECT_STORAGE_BUCKET}; mc anonymous set download local/${OBJECT_STORAGE_BUCKET}"
+
+  livekit:
+    image: livekit/livekit-server:v1.13.3
+    command: --config /etc/livekit.yaml
+    volumes:
+      - ${LIVEKIT_CONFIG_PATH}:/etc/livekit.yaml:ro
+    ports:
+      - "127.0.0.1:7880:7880"
+      - "7881:7881"
+      - "7882:7882/udp"
+
+  api:
+    image: mujskaiaopora-app:${APP_REVISION}
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    command: >-
+      sh -c "npx prisma db push --schema apps/api/prisma/schema.prisma && node apps/api/dist/main.js"
+    env_file: .env
+    environment:
+      PORT: 4000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      minio:
+        condition: service_started
+    ports:
+      - "127.0.0.1:4000:4000"
+
+  web:
+    image: mujskaiaopora-app:${APP_REVISION}
+    command: npm run start --workspace=@mujskaiaopora/web
+    environment:
+      PORT: 3000
+    depends_on:
+      - api
+    ports:
+      - "127.0.0.1:3000:3000"
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:

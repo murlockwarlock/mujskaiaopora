@@ -31,7 +31,7 @@ export function Messages(props: MessagesProps) {
 
   useEffect(() => {
     const token = api.getAccessToken();
-    const endpoint = process.env.NEXT_PUBLIC_REALTIME_URL;
+    const endpoint = process.env.NEXT_PUBLIC_REALTIME_URL || window.location.origin;
     if (!selected || !token || !endpoint) return;
     const socket = io(endpoint, { auth: { token }, transports: ['websocket'] });
     socket.emit('conversation:join', { conversationId: selected.id });

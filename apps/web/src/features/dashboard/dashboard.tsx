@@ -44,7 +44,7 @@ export function Dashboard(props: DashboardProps) {
 
   useEffect(() => {
     const token = api.getAccessToken();
-    const endpoint = process.env.NEXT_PUBLIC_REALTIME_URL;
+    const endpoint = process.env.NEXT_PUBLIC_REALTIME_URL || window.location.origin;
     if (!token || !endpoint) return;
     const socket = io(endpoint, { auth: { token }, transports: ['websocket'] });
     socket.on('message:notification', (payload: { conversationId: string; senderName: string }) => {
