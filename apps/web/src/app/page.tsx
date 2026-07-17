@@ -109,8 +109,14 @@ export default function Page() {
   }
 
   async function dismissRecommendation(userId: string): Promise<void> {
-    await api.request('matching/dismissals', { method: 'POST', body: JSON.stringify({ userId }) });
+    const dismissed = recommendations.find((item) => item.id === userId);
     setRecommendations((current) => current.filter((item) => item.id !== userId));
+    try {
+      await api.request('matching/dismissals', { method: 'POST', body: JSON.stringify({ userId }) });
+    } catch (cause) {
+      if (dismissed) setRecommendations((current) => current.some((item) => item.id === userId) ? current : [dismissed, ...current]);
+      setNotice(cause instanceof Error ? cause.message : 'Не удалось пропустить анкету');
+    }
   }
 
   async function blockUser(userId: string): Promise<void> {
