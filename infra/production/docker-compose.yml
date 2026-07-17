@@ -31,7 +31,7 @@ services:
       - "127.0.0.1:9000:9000"
 
   minio-init:
-    image: minio/mc:RELEASE.2025-05-21T22-12-26Z
+    image: minio/mc:RELEASE.2025-05-21T01-59-54Z
     depends_on:
       - minio
     entrypoint: >-
