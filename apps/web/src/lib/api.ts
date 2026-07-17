@@ -47,6 +47,8 @@ class ApiClient {
   async logout(): Promise<void> {
     try {
       await this.request('auth/logout', { method: 'POST', authenticated: false });
+    } catch {
+      return;
     } finally {
       this.clearAccessToken();
     }
