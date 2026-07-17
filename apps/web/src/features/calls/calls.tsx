@@ -257,7 +257,17 @@ function CallTile({ participant, local, videoEnabled }: { participant: Participa
   }, [hasVideo, track]);
 
   const name = local ? 'Вы' : participant.name || 'Участник';
-  return <article className={participant.isSpeaking ? 'call-tile speaking' : 'call-tile'}>{hasVideo ? <video ref={video} autoPlay playsInline muted={local} /> : <div className="call-avatar">{name.slice(0, 1).toUpperCase()}</div>}<div className="call-person"><span>{name}</span>{!local && participant.isSpeaking && <i>Говорит</i>}</div>{videoEnabled && !hasVideo && <span className="camera-off">Камера выключена</span>}</article>;
+  const avatarUrl = getParticipantAvatar(participant);
+  return <article className={participant.isSpeaking ? 'call-tile speaking' : 'call-tile'}>{hasVideo ? <video ref={video} autoPlay playsInline muted={local} /> : avatarUrl ? <img className="call-avatar-photo" src={avatarUrl} alt={`Аватар ${name}`} /> : <div className="call-avatar">{name.slice(0, 1).toUpperCase()}</div>}<div className="call-person"><span>{name}</span>{!local && participant.isSpeaking && <i>Говорит</i>}</div>{videoEnabled && !hasVideo && <span className="camera-off">Камера выключена</span>}</article>;
+}
+
+function getParticipantAvatar(participant: Participant): string | null {
+  try {
+    const metadata = JSON.parse(participant.metadata ?? '{}') as { avatarUrl?: unknown };
+    return typeof metadata.avatarUrl === 'string' && metadata.avatarUrl ? metadata.avatarUrl : null;
+  } catch {
+    return null;
+  }
 }
 
 function ParticipantAudio({ participant }: { participant: Participant }) {

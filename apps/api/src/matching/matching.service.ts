@@ -53,6 +53,32 @@ export class MatchingService {
       .slice(0, take);
   }
 
+  async directory(userId: string, take = 100) {
+    const [blocks, candidates] = await Promise.all([
+      this.prisma.block.findMany({
+        where: { OR: [{ creatorId: userId }, { targetId: userId }] },
+        select: { creatorId: true, targetId: true }
+      }),
+      this.prisma.user.findMany({
+        where: { id: { not: userId }, status: 'ACTIVE', profile: { is: { isVisible: true } } },
+        select: {
+          id: true,
+          displayName: true,
+          profile: { select: { city: true, bio: true, languages: true, interests: true, avatarKey: true } }
+        },
+        orderBy: { createdAt: 'desc' },
+        take
+      })
+    ]);
+    const blockedUserIds = new Set(blocks.map((block) => (block.creatorId === userId ? block.targetId : block.creatorId)));
+    return candidates
+      .filter((candidate) => !blockedUserIds.has(candidate.id))
+      .map((candidate) => ({
+        ...candidate,
+        profile: candidate.profile ? { ...candidate.profile, avatarUrl: this.storage.getPublicUrl(candidate.profile.avatarKey), avatarKey: undefined } : null
+      }));
+  }
+
   async dismiss(userId: string, candidateId: string) {
     this.assertDifferentUsers(userId, candidateId);
     return this.prisma.recommendationDismissal.upsert({

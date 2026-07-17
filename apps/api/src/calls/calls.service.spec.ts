@@ -2,7 +2,7 @@ import { CallsService } from './calls.service';
 
 describe('CallsService', () => {
   it('creates a conversation room and returns its connection in one operation', async () => {
-    const service = new CallsService({} as never, { getOrThrow: jest.fn().mockReturnValue('10') } as never, {} as never);
+    const service = new CallsService({} as never, { getOrThrow: jest.fn().mockReturnValue('10') } as never, {} as never, {} as never);
     jest.spyOn(service, 'createRoom').mockResolvedValue({ id: 'room' } as never);
     jest.spyOn(service, 'joinRoom').mockResolvedValue({ token: 'token', url: 'ws://localhost:7880', roomName: 'call_room', inviteCode: 'invite', canInvite: true });
 

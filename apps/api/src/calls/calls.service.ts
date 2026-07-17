@@ -4,6 +4,7 @@ import { randomUUID } from 'crypto';
 import { AccessToken } from 'livekit-server-sdk';
 import { PrismaService } from '../prisma/prisma.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
+import { StorageService } from '../storage/storage.service';
 import { CreateCallMessageDto, CreateCallRoomDto } from './dto/calls.dto';
 
 @Injectable()
@@ -11,7 +12,8 @@ export class CallsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
-    private readonly realtimeGateway: RealtimeGateway
+    private readonly realtimeGateway: RealtimeGateway,
+    private readonly storage: StorageService
   ) {}
 
   async createRoom(userId: string, dto: CreateCallRoomDto) {
@@ -69,10 +71,14 @@ export class CallsService {
     if (room.status === 'SCHEDULED') await this.prisma.callRoom.update({ where: { id: room.id }, data: { status: 'LIVE' } });
     await this.prisma.callInvitation.updateMany({ where: { callRoomId: room.id, userId, status: 'PENDING' }, data: { status: 'ACCEPTED', respondedAt: new Date() } });
 
+    const user = await this.prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { displayName: true, profile: { select: { avatarKey: true } } }
+    });
     const token = new AccessToken(
       this.config.getOrThrow<string>('LIVEKIT_API_KEY'),
       this.config.getOrThrow<string>('LIVEKIT_API_SECRET'),
-      { identity: `user_${userId}`, ttl: '10m' }
+      { identity: `user_${userId}`, name: user.displayName, metadata: JSON.stringify({ avatarUrl: this.storage.getPublicUrl(user.profile?.avatarKey ?? null) }), ttl: '10m' }
     );
     token.addGrant({ roomJoin: true, room: room.livekitRoomName, canPublish: true, canSubscribe: true });
     return { token: await token.toJwt(), url: this.config.getOrThrow<string>('LIVEKIT_URL'), roomName: room.livekitRoomName, inviteCode: room.inviteCode, canInvite: room.createdById === userId };

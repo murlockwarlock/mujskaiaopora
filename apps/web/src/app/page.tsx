@@ -10,6 +10,7 @@ export default function Page() {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
+  const [availableUsers, setAvailableUsers] = useState<Recommendation[]>([]);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -46,31 +47,31 @@ export default function Page() {
   }
 
   async function loadAccount(): Promise<void> {
-    const [user, nextProfile, nextRecommendations, nextConversations] = await Promise.all([
-      api.request<Profile['user'] & { email: string; role: string }>('auth/me'),
+    const user = await api.request<Profile['user'] & { email: string; role: string }>('auth/me');
+    setSession({ accessToken: '', user });
+    const [profileResult, recommendationsResult, usersResult, conversationsResult] = await Promise.allSettled([
       api.request<Profile>('profile'),
       api.request<Recommendation[]>('matching/recommendations'),
+      api.request<Recommendation[]>('matching/users'),
       api.request<Conversation[]>('conversations')
     ]);
-    setSession({ accessToken: '', user });
-    setProfile(nextProfile);
-    void synchronizeTimeZone(nextProfile);
-    setRecommendations(nextRecommendations);
-    setConversations(nextConversations);
+    if (profileResult.status === 'fulfilled') {
+      setProfile(profileResult.value);
+      void synchronizeTimeZone(profileResult.value);
+    }
+    if (recommendationsResult.status === 'fulfilled') setRecommendations(recommendationsResult.value);
+    if (usersResult.status === 'fulfilled') setAvailableUsers(usersResult.value);
+    if (conversationsResult.status === 'fulfilled') setConversations(conversationsResult.value);
     setLoading(false);
   }
 
   async function completeAuthentication(nextSession: Session): Promise<void> {
     setSession(nextSession);
-    const [nextProfile, nextRecommendations, nextConversations] = await Promise.all([
-      api.request<Profile>('profile'),
-      api.request<Recommendation[]>('matching/recommendations'),
-      api.request<Conversation[]>('conversations')
-    ]);
-    setProfile(nextProfile);
-    void synchronizeTimeZone(nextProfile);
-    setRecommendations(nextRecommendations);
-    setConversations(nextConversations);
+    try {
+      await loadAccount();
+    } catch (cause) {
+      setNotice(cause instanceof Error ? cause.message : 'Не удалось загрузить данные профиля');
+    }
   }
 
   async function openConversation(conversation: Conversation): Promise<void> {
@@ -121,5 +122,5 @@ export default function Page() {
   if (loading) return <main className="loading">Загружаем пространство…</main>;
   if (!session) return <AuthScreen onAuthenticated={completeAuthentication} />;
 
-  return <Dashboard session={session} profile={profile} recommendations={recommendations} conversations={conversations} selectedConversation={selectedConversation} messages={messages} view={view} notice={notice} onView={setView} onProfile={setProfile} onNotice={setNotice} onStartConversation={startConversation} onDismissRecommendation={dismissRecommendation} onBlockUser={blockUser} onOpenConversation={openConversation} onCreateGroup={createGroup} onAddGroupMembers={addGroupMembers} onMessages={setMessages} onLogout={async () => { await api.logout(); setSession(null); setProfile(null); }} />;
+  return <Dashboard session={session} profile={profile} recommendations={recommendations} availableUsers={availableUsers} conversations={conversations} selectedConversation={selectedConversation} messages={messages} view={view} notice={notice} onView={setView} onProfile={setProfile} onNotice={setNotice} onStartConversation={startConversation} onDismissRecommendation={dismissRecommendation} onBlockUser={blockUser} onOpenConversation={openConversation} onCreateGroup={createGroup} onAddGroupMembers={addGroupMembers} onMessages={setMessages} onLogout={async () => { await api.logout(); setSession(null); setProfile(null); }} />;
 }

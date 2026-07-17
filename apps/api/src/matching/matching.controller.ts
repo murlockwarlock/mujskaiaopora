@@ -19,6 +19,12 @@ export class MatchingController {
     return this.matchingService.recommendations(user.sub, limit);
   }
 
+  @Get('users')
+  directory(@CurrentUser() user: AuthenticatedUser, @Query('take') take?: string) {
+    const limit = Math.min(Math.max(Number(take) || 100, 1), 100);
+    return this.matchingService.directory(user.sub, limit);
+  }
+
   @Post('dismissals')
   dismiss(@CurrentUser() user: AuthenticatedUser, @Body() dto: CandidateIdDto) {
     return this.matchingService.dismiss(user.sub, dto.userId);
