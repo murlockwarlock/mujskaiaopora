@@ -245,20 +245,26 @@ function CallInviteDialog({ roomId, inviteCode, recommendations, currentUserId, 
 
 function CallTile({ participant, local, videoEnabled }: { participant: Participant; local: boolean; videoEnabled: boolean }) {
   const video = useRef<HTMLVideoElement>(null);
+  const [portrait, setPortrait] = useState(false);
   const track = videoEnabled ? participant.getTrackPublication(Track.Source.Camera)?.track : undefined;
   const hasVideo = Boolean(track && !participant.getTrackPublication(Track.Source.Camera)?.isMuted);
 
   useEffect(() => {
     if (!hasVideo || !track || track.kind !== Track.Kind.Video || !video.current) return;
-    track.attach(video.current);
+    const element = video.current;
+    const synchronizeOrientation = () => setPortrait(element.videoHeight > element.videoWidth);
+    track.attach(element);
+    element.addEventListener('loadedmetadata', synchronizeOrientation);
+    synchronizeOrientation();
     return () => {
-      if (video.current) track.detach(video.current);
+      element.removeEventListener('loadedmetadata', synchronizeOrientation);
+      track.detach(element);
     };
   }, [hasVideo, track]);
 
   const name = local ? 'Вы' : participant.name || 'Участник';
   const avatarUrl = getParticipantAvatar(participant);
-  return <article className={participant.isSpeaking ? 'call-tile speaking' : 'call-tile'}>{hasVideo ? <video ref={video} autoPlay playsInline muted={local} /> : <div className="call-avatar-center">{avatarUrl ? <img src={avatarUrl} alt={`Аватар ${name}`} /> : <span>{name.slice(0, 1).toUpperCase()}</span>}</div>}<div className="call-person"><span>{name}</span>{!local && participant.isSpeaking && <i>Говорит</i>}</div>{videoEnabled && !hasVideo && <span className="camera-off">Камера выключена</span>}</article>;
+  return <article className={`${participant.isSpeaking ? 'call-tile speaking' : 'call-tile'}${portrait ? ' portrait' : ''}`}>{hasVideo ? <video ref={video} autoPlay playsInline muted={local} /> : <div className="call-avatar-center">{avatarUrl ? <img src={avatarUrl} alt={`Аватар ${name}`} /> : <span>{name.slice(0, 1).toUpperCase()}</span>}</div>}<div className="call-person"><span>{name}</span>{!local && participant.isSpeaking && <i>Говорит</i>}</div>{videoEnabled && !hasVideo && <span className="camera-off">Камера выключена</span>}</article>;
 }
 
 function CallMember({ participant, local }: { participant: Participant; local: boolean }) {
