@@ -23,7 +23,7 @@ async function bootstrap(): Promise<void> {
 
   await app.register(fastifyHelmet, { contentSecurityPolicy: false });
   await app.register(fastifyCookie, { secret: process.env.JWT_SECRET });
-  app.enableCors({ origin: webOrigin, credentials: true });
+  app.enableCors({ origin: webOrigin, credentials: true, methods: ['GET', 'HEAD', 'POST', 'PATCH', 'DELETE', 'OPTIONS'] });
   app.useWebSocketAdapter(new RealtimeAdapter(app, config));
   app.setGlobalPrefix('v1');
   app.useGlobalPipes(new ValidationPipe({ transform: true, whitelist: true, forbidNonWhitelisted: true }));
